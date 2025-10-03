@@ -13,12 +13,22 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-// ✅ Serve static files from admin folder
-app.use(express.static("admin"));
+// ✅ Path helpers for serving static files
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ✅ Serve static files (admin folder + root)
+app.use(express.static(path.join(__dirname, "admin")));
+app.use(express.static(__dirname)); 
 
 // Gemini setup
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+// Routes
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html")); // show homepage
+});
 
 app.post("/chat", async (req, res) => {
   try {
@@ -26,7 +36,9 @@ app.post("/chat", async (req, res) => {
     const result = await model.generateContent(userMessage);
 
     // Safely extract text
-    const reply = result?.response?.candidates?.[0]?.content?.parts?.[0]?.text || "⚠️ No reply from Gemini.";
+    const reply =
+      result?.response?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "⚠️ No reply from Gemini.";
     
     res.json({ reply });
   } catch (error) {
