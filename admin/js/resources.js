@@ -24,7 +24,10 @@ document.addEventListener('DOMContentLoaded', function() {
             db.ref('users/' + user.uid).once('value').then((snapshot) => {
                 const userData = snapshot.val();
                 if (!userData || userData.role !== 'admin') {
+                    Swal.fire('Access Denied', 'You do not have permission to access this page.', 'error');
+                    setTimeout(() => {
                     window.location.href = '../index.html';
+                    }, 2000);
                 } else {
                     // User is authenticated and is admin, load resources
                     loadResources();

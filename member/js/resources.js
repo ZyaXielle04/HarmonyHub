@@ -141,11 +141,9 @@ function loadUserData() {
 }
 
 function fetchResources() {
-    // Show loading state
     const resourcesContainer = document.getElementById('resources-container');
     resourcesContainer.innerHTML = '<div class="loading-state">Loading resources...</div>';
     
-    // Fetch resources from Firebase
     const resourcesRef = firebase.database().ref('resources');
     
     resourcesRef.once('value')
@@ -155,16 +153,17 @@ function fetchResources() {
                 const resource = childSnapshot.val();
                 resource.id = childSnapshot.key;
                 
-                // Only include resources with accessLevel 'public' or 'members'
                 if (resource.accessLevel === 'public' || resource.accessLevel === 'members') {
                     allResources.push(resource);
                 }
             });
             
-            // Display resources
             filteredResources = [...allResources];
             displayResources();
             updateResourceCounts();
+
+            // ✅ Refresh favorites AFTER resources are loaded
+            updateFavoritesDisplay();
         })
         .catch((error) => {
             console.error('Error fetching resources:', error);
@@ -190,6 +189,9 @@ function displayResources() {
         const resourceCard = createResourceCard(resource);
         resourcesContainer.appendChild(resourceCard);
     });
+
+    // 👇 ensure favorites are updated after rendering
+    updateFavoritesDisplay();
 }
 
 function createResourceCard(resource) {
@@ -291,50 +293,54 @@ function getResourceIcon(resource) {
 }
 
 function loadUserFavorites(userId) {
-    // Load user's favorite resources from Firebase
+    // Real-time listener for favorites
     const favoritesRef = firebase.database().ref(`userFavorites/${userId}`);
     
-    favoritesRef.once('value')
-        .then((snapshot) => {
-            favorites = [];
-            if (snapshot.exists()) {
-                snapshot.forEach((childSnapshot) => {
-                    favorites.push(childSnapshot.key);
-                });
-            }
-            updateFavoritesDisplay();
-        })
-        .catch((error) => {
-            console.error('Error loading favorites:', error);
-        });
+    favoritesRef.on('value', (snapshot) => {
+        favorites = [];
+        if (snapshot.exists()) {
+            snapshot.forEach((childSnapshot) => {
+                favorites.push(childSnapshot.key);
+            });
+        }
+        updateFavoritesDisplay(); // update UI whenever data changes
+    }, (error) => {
+        console.error('Error loading favorites:', error);
+    });
 }
 
 function updateFavoritesDisplay() {
-    // Update favorite buttons based on current favorites
-    const favoriteButtons = document.querySelectorAll('.favorite-btn');
-    favoriteButtons.forEach(button => {
-        const resourceCard = button.closest('.resource-card');
-        const resourceId = resourceCard.getAttribute('data-id');
-        const heartIcon = button.querySelector('i');
-        
-        if (favorites.includes(resourceId)) {
-            heartIcon.classList.remove('far');
-            heartIcon.classList.add('fas');
-            button.title = 'Remove from favorites';
-        } else {
-            heartIcon.classList.remove('fas');
-            heartIcon.classList.add('far');
-            button.title = 'Add to favorites';
+    const favoritesContainer = document.getElementById('favorites-container');
+    if (!favoritesContainer) return;
+
+    // If resources aren't loaded yet, wait until they are
+    if (allResources.length === 0) return;
+
+    // If no favorites
+    if (favorites.length === 0) {
+        favoritesContainer.innerHTML = `
+            <div class="empty-state">
+                <i class="far fa-star"></i>
+                <p>You haven't added any resources to favorites yet.</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Clear and re-render favorites
+    favoritesContainer.innerHTML = '';
+    favorites.forEach(favoriteId => {
+        const resource = allResources.find(r => r.id === favoriteId);
+        if (resource) {
+            favoritesContainer.appendChild(createFavoriteItem(resource));
         }
     });
-    
-    // Update favorites section
-    displayFavorites();
 }
 
 function displayFavorites() {
     const favoritesContainer = document.getElementById('favorites-container');
-    
+    if (!favoritesContainer) return; // safeguard
+
     if (favorites.length === 0) {
         favoritesContainer.innerHTML = `
             <div class="empty-state">
@@ -345,9 +351,9 @@ function displayFavorites() {
         `;
         return;
     }
-    
+
     favoritesContainer.innerHTML = '';
-    
+
     favorites.forEach(favoriteId => {
         const resource = allResources.find(r => r.id === favoriteId);
         if (resource) {

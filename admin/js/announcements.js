@@ -29,6 +29,38 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentEditId = null;
   let announcementsCache = {};
 
+  // ---------------- AUTH CHECK (Admins Only) ----------------
+  auth.onAuthStateChanged((user) => {
+    if (!user) {
+      Swal.fire("Unauthorized", "Please log in first.", "error").then(() => {
+        window.location.href = "../index.html";
+      });
+      return;
+    }
+
+    // ✅ Fetch user role from RTDB
+    database.ref(`users/${user.uid}/role`).once("value")
+      .then((snapshot) => {
+        const role = snapshot.val();
+
+        if (role !== "admin") {
+          Swal.fire("Unauthorized", "You are not authorized to access this page!", "error")
+            .then(() => {
+              window.location.href = "../index.html";
+            });
+        } else {
+          // ✅ Allow admin access
+          loadAnnouncements();
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching user role:", err);
+        Swal.fire("Error", "Could not verify your permissions.", "error").then(() => {
+          window.location.href = "../index.html";
+        });
+      });
+  });
+
   // ---------------- Load announcements (live) ----------------
   function loadAnnouncements() {
     loadingIndicator.style.display = "flex";
@@ -285,7 +317,4 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
   }
-
-  // ---------------- Init ----------------
-  loadAnnouncements();
 });

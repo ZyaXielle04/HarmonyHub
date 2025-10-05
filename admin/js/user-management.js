@@ -38,6 +38,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!user) {
                 console.error("No authenticated user. Access denied.");
                 showAlert("error", "Unauthorized", "You must be logged in as an admin.");
+                setTimeout(() => {
+                window.location.href = '/index.html'; // Redirect to login
+                }, 2000);
                 return;
             }
 

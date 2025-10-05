@@ -5,9 +5,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const notifList = document.getElementById("notifications-list");
     const notifTabs = document.querySelectorAll(".notif-tab");
 
-    // Badge element
+    // Badge element (red dot)
     const badge = document.createElement("span");
     badge.classList.add("badge");
+    badge.style.width = "10px";
+    badge.style.height = "10px";
+    badge.style.borderRadius = "50%";
+    badge.style.backgroundColor = "red";
+    badge.style.display = "none"; // hidden by default
     notifBtn.appendChild(badge);
 
     // Globals
@@ -16,25 +21,11 @@ document.addEventListener("DOMContentLoaded", () => {
     let allNotifications = [];
 
     // ================= ROLE & PERMISSION HELPERS =================
-    function isAdmin(user) {
-        return user?.role === "admin";
-    }
-
-    function isStaff(user) {
-        return user?.role === "staff";
-    }
-
-    function isMember(user) {
-        return user?.role === "member";
-    }
-
-    function hasPermission(user, permissionKey) {
-        return !!user?.permissions?.[permissionKey];
-    }
-
-    function canAccessUserManagement(user) {
-        return (isAdmin(user) || isStaff(user)) && hasPermission(user, "canVerifyUsers");
-    }
+    function isAdmin(user) { return user?.role === "admin"; }
+    function isStaff(user) { return user?.role === "staff"; }
+    function isMember(user) { return user?.role === "member"; }
+    function hasPermission(user, permissionKey) { return !!user?.permissions?.[permissionKey]; }
+    function canAccessUserManagement(user) { return (isAdmin(user) || isStaff(user)) && hasPermission(user, "canVerifyUsers"); }
 
     // ================= AUTH + PERMISSION CHECK =================
     auth.onAuthStateChanged((user) => {
@@ -45,11 +36,8 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!userData) return;
 
             currentUser = { uid: user.uid, ...userData };
-
-            // Only admins or staff with canVerifyUsers see registration notifs
             canSeeRegistration = canAccessUserManagement(currentUser);
 
-            // Load notifications
             loadNotifications();
         });
     });
@@ -58,12 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function loadNotifications() {
         database.ref("activity_table").on("value", (snapshot) => {
             const data = snapshot.val() || {};
-            allNotifications = Object.entries(data).map(([id, notif]) => ({
-                id,
-                ...notif,
-            }));
-
-            // Default render: all
+            allNotifications = Object.entries(data).map(([id, notif]) => ({ id, ...notif }));
             renderNotifications("all");
         });
     }
@@ -71,17 +54,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // ================= RENDER NOTIFICATIONS =================
     function renderNotifications(filter = "all") {
         notifList.innerHTML = "";
-
         let filtered = [...allNotifications];
 
         if (filter === "unread") {
-            filtered = filtered.filter(
-                (n) => !n.readBy || !n.readBy[currentUser.uid]
-            );
+            filtered = filtered.filter(n => !n.readBy || !n.readBy[currentUser.uid]);
         }
 
-        // Sort newest first
-        filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
         if (filtered.length === 0) {
             notifList.innerHTML = `<p class="no-notifs">No notifications</p>`;
@@ -89,61 +68,34 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        // Render by type
         filtered.forEach((notif) => {
             switch (notif.type) {
-                case "registration":
-                    if (canSeeRegistration) {
-                        renderRegistrationNotif(notif);
-                    }
-                    break;
-                case "resource_upload":
-                    renderResourceNotif(notif);
-                    break;
-                case "announcement":
-                    renderAnnouncementNotif(notif);
-                    break;
-                case "schedule":
-                    renderScheduleNotif(notif);
-                    break;
-                default:
-                    console.warn("Unknown notif type:", notif);
+                case "registration": if (canSeeRegistration) renderRegistrationNotif(notif); break;
+                case "resource_upload": renderResourceNotif(notif); break;
+                case "announcement": renderAnnouncementNotif(notif); break;
+                case "schedule": renderScheduleNotif(notif); break;
+                case "meeting": renderMeetingNotif(notif); break;
+                default: console.warn("Unknown notif type:", notif);
             }
         });
 
-        // Badge update
-        const unreadCount = allNotifications.filter(
-            (n) => !n.readBy || !n.readBy[currentUser.uid]
-        ).length;
-        if (unreadCount > 0) {
-            badge.textContent = unreadCount;
-            badge.style.display = "inline-block";
-        } else {
-            resetBadge();
-        }
+        updateBadge();
     }
 
     // ================= REGISTRATION NOTIFICATION =================
     function renderRegistrationNotif(data) {
         const isUnread = !data.readBy || !data.readBy[currentUser.uid];
-
         const notifItem = document.createElement("div");
         notifItem.className = `notif-item ${isUnread ? "unread" : ""}`;
         notifItem.id = `notif-${data.id}`;
 
         let actionsHtml = "";
         if (!data.solved) {
-            actionsHtml = `
-                <div class="notif-actions">
-                    <button class="notif-approve">Verify Account</button>
-                </div>
-            `;
+            actionsHtml = `<div class="notif-actions"><button class="notif-approve">Verify Account</button></div>`;
         } else {
-            if (data.verifiedBy) {
-                actionsHtml = `<div class="notif-status">✅ Verified by ${data.verifiedBy} on ${new Date(data.verificationDate).toLocaleString()}</div>`;
-            } else {
-                actionsHtml = `<div class="notif-status">✔️ Solved</div>`;
-            }
+            actionsHtml = data.verifiedBy
+                ? `<div class="notif-status">✅ Verified by ${data.verifiedBy} on ${new Date(data.verificationDate).toLocaleString()}</div>`
+                : `<div class="notif-status">✔️ Solved</div>`;
         }
 
         notifItem.innerHTML = `
@@ -156,7 +108,6 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
         `;
 
-        // 📌 Redirect to user-management.html
         notifItem.addEventListener("click", () => {
             markAsRead(data.id);
             window.location.href = "user-management.html";
@@ -164,21 +115,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!data.solved) {
             notifItem.querySelector(".notif-approve").addEventListener("click", (e) => {
-                e.stopPropagation(); // prevent redirect
+                e.stopPropagation();
                 const verificationDate = new Date().toISOString();
 
-                database.ref(`users/${data.userId}`).update({
-                    isVerified: true,
-                    verificationDate: verificationDate
-                });
-
+                database.ref(`users/${data.userId}`).update({ isVerified: true, verificationDate });
                 database.ref(`activity_table/${data.id}`).update({
-                    isVerified: true,
-                    verifiedBy: currentUser.name,
-                    verificationDate: verificationDate,
-                    solved: true,
+                    isVerified: true, verifiedBy: currentUser.name, verificationDate, solved: true
                 });
-
                 database.ref(`activity_table/${data.id}/readBy/${currentUser.uid}`).set(true);
 
                 Swal.fire("✅ Verified", `${data.name} is now verified.`, "success");
@@ -188,30 +131,19 @@ document.addEventListener("DOMContentLoaded", () => {
         notifList.prepend(notifItem);
     }
 
-    // ================= RESOURCE UPLOAD NOTIFICATION =================
+    // ================= RESOURCE NOTIFICATION =================
     function renderResourceNotif(data) {
         const isUnread = !data.readBy || !data.readBy[currentUser.uid];
         const access = data.accessLevel || "public";
-
-        let canView = false;
-        if (isAdmin(currentUser)) {
-            canView = true;
-        } else if (isStaff(currentUser)) {
-            canView = access === "public" || access === "staff";
-        } else if (isMember(currentUser)) {
-            canView = access === "public" || access === "members";
-        }
-
+        let canView = isAdmin(currentUser) || (isStaff(currentUser) && (access === "public" || access === "staff")) || (isMember(currentUser) && (access === "public" || access === "members"));
         if (!canView) return;
 
         const notifItem = document.createElement("div");
         notifItem.className = `notif-item ${isUnread ? "unread" : ""}`;
         notifItem.id = `notif-${data.id}`;
 
-        // Lookup uploader name
         database.ref(`users/${data.uploadedBy}/name`).once("value").then((snap) => {
             const uploaderName = snap.val() || "Unknown User";
-
             notifItem.innerHTML = `
                 <div class="notif-avatar">📘</div>
                 <div class="notif-content">
@@ -222,13 +154,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     <small>🕒 ${new Date(data.timestamp).toLocaleString()}</small>
                 </div>
             `;
-
-            // 📌 Redirect to resources.html
             notifItem.addEventListener("click", () => {
                 markAsRead(data.id);
                 window.location.href = "resources.html";
             });
-
             notifList.prepend(notifItem);
         });
     }
@@ -236,7 +165,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // ================= ANNOUNCEMENT NOTIFICATION =================
     function renderAnnouncementNotif(data) {
         const isUnread = !data.readBy || !data.readBy[currentUser.uid];
-
         const notifItem = document.createElement("div");
         notifItem.className = `notif-item ${isUnread ? "unread" : ""}`;
         notifItem.id = `notif-${data.id}`;
@@ -249,7 +177,6 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
         `;
 
-        // 📌 Redirect to announcement.html
         notifItem.addEventListener("click", () => {
             markAsRead(data.id);
             window.location.href = "announcements.html";
@@ -258,33 +185,20 @@ document.addEventListener("DOMContentLoaded", () => {
         notifList.prepend(notifItem);
     }
 
-    // ================= SCHEDULE NOTIFICATION (NEW with colors/icons) =================
+    // ================= SCHEDULE NOTIFICATION =================
     function renderScheduleNotif(data) {
         const isUnread = !data.readBy || !data.readBy[currentUser.uid];
-
-        // Pick icon + color by scheduleType
-        let icon = "📅";
-        let color = "#6c5ce7"; // default purple
+        let icon = "📅", color = "#6c5ce7";
 
         switch ((data.scheduleType || "").toLowerCase()) {
-            case "meeting":
-                icon = "📘";
-                color = "#0984e3"; // blue
-                break;
-            case "performance":
-                icon = "📅";
-                color = "#00b894"; // green
-                break;
-            case "activity":
-                icon = "📝";
-                color = "#e17055"; // orange
-                break;
+            case "meeting": icon = "📘"; color = "#0984e3"; break;
+            case "performance": icon = "📅"; color = "#00b894"; break;
+            case "activity": icon = "📝"; color = "#e17055"; break;
         }
 
         const notifItem = document.createElement("div");
         notifItem.className = `notif-item ${isUnread ? "unread" : ""}`;
         notifItem.id = `notif-${data.id}`;
-
         notifItem.innerHTML = `
             <div class="notif-avatar" style="background:${color};">${icon}</div>
             <div class="notif-content">
@@ -303,18 +217,73 @@ document.addEventListener("DOMContentLoaded", () => {
         notifList.prepend(notifItem);
     }
 
+    // ================= MEETING NOTIFICATION =================
+    function renderMeetingNotif(data) {
+        const isUnread = !data.readBy || !data.readBy[currentUser.uid];
+
+        const notifItem = document.createElement("div");
+        notifItem.className = `notif-item ${isUnread ? "unread" : ""}`;
+        notifItem.id = `notif-${data.id}`;
+
+        notifItem.innerHTML = `
+            <div class="notif-avatar">📘</div>
+            <div class="notif-content">
+                <strong>Meeting Scheduled</strong><br>
+                <small>Meeting ID: ${data.meetingId}</small><br>
+                <small>Passcode: ${data.passcode}</small><br>
+                <small>Date: ${data.date}</small><br>
+                <small>Time: ${data.time}</small><br>
+                <small>Created by: ${data.createdBy}</small><br>
+                <button class="join-meeting-btn">Join Meeting</button>
+            </div>
+        `;
+
+        notifItem.querySelector(".join-meeting-btn").addEventListener("click", (e) => {
+            e.stopPropagation();
+            window.open(`https://zoom.us/j/${data.meetingId}?pwd=${data.passcode}`, "_blank");
+        });
+
+        notifItem.addEventListener("click", () => markAsRead(data.id));
+
+        notifList.prepend(notifItem);
+    }
+
     // ================= READ-BY LOGIC =================
     function markAsRead(activityId) {
         if (!currentUser) return;
-        const path = `activity_table/${activityId}/readBy/${currentUser.uid}`;
-        database.ref(path).set(true);
+        database.ref(`activity_table/${activityId}/readBy/${currentUser.uid}`).set(true);
+        updateBadge();
     }
 
     // ================= BADGE HANDLING =================
-    function resetBadge() {
-        badge.textContent = "";
-        badge.style.display = "none";
+    function updateBadge() {
+        if (!currentUser) return;
+
+        const visibleUnreadCount = allNotifications.filter(n => {
+            const canSee = 
+                (n.type === "registration" && canSeeRegistration) ||
+                (n.type === "resource_upload" && canViewResource(n)) ||
+                (n.type === "announcement") ||
+                (n.type === "schedule") ||
+                (n.type === "meeting");
+
+            return canSee && (!n.readBy || !n.readBy[currentUser.uid]);
+        }).length;
+
+        if (visibleUnreadCount > 0) {
+            badge.style.display = "inline-block";
+        } else {
+            badge.style.display = "none";
+        }
     }
+
+    function canViewResource(data) {
+        const access = data.accessLevel || "public";
+        return isAdmin(currentUser) || 
+            (isStaff(currentUser) && (access === "public" || access === "staff")) || 
+            (isMember(currentUser) && (access === "public" || access === "members"));
+    }
+    function resetBadge() { badge.style.display = "none"; }
 
     // ================= TAB SWITCHING =================
     notifTabs.forEach((tab) => {
@@ -329,15 +298,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (notifBtn && notifDropdown) {
         notifBtn.addEventListener("click", (e) => {
             e.stopPropagation();
-            notifDropdown.style.display =
-                notifDropdown.style.display === "flex" ? "none" : "flex";
+            notifDropdown.style.display = notifDropdown.style.display === "flex" ? "none" : "flex";
         });
 
         document.addEventListener("click", (e) => {
-            if (
-                !notifDropdown.contains(e.target) &&
-                !notifBtn.contains(e.target)
-            ) {
+            if (!notifDropdown.contains(e.target) && !notifBtn.contains(e.target)) {
                 notifDropdown.style.display = "none";
             }
         });

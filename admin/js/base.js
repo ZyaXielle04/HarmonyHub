@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const name = document.querySelector('.user-name');
     const role = document.querySelector('.user-role');
 
-    const userData = JSON.parse(localStorage.getItem('authUser'));
+    const userData = JSON.parse(sessionStorage.getItem('authUser'));
     if (userData){
         name.textContent = userData.name || 'User';
         role.textContent = userData.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1) : 'Member';

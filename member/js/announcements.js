@@ -21,16 +21,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const userRole = authUser.role || "member";
 
   // Fetch announcements from Firebase
+  // Fetch announcements from Firebase
   announcementsRef.on("value", (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.val();
       allAnnouncements = Object.keys(data)
         .map((id) => ({ id, ...data[id] }))
         .filter((a) => {
-          if (a.audience === "members_only" && userRole !== "member") {
-            return false;
-          }
-          return true;
+          // Only show if audience is "members_only" or "all_users"
+          return a.audience === "members_only" || a.audience === "all_users";
         })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 

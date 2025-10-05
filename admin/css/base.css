@@ -79,6 +79,21 @@ body {
     flex: 1;
     padding: 20px 0;
     transition: padding 0.3s ease;
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+}
+
+.nav-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.nav-menu::-webkit-scrollbar-thumb {
+    background-color: rgba(255,255,255,0.3);
+    border-radius: 3px;
+}
+
+.nav-menu::-webkit-scrollbar-track {
+    background: transparent;
 }
 
 .nav-menu ul {

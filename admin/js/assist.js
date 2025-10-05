@@ -5,6 +5,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const userInput = document.getElementById("user-input");
   const sendBtn = document.getElementById("send-btn");
 
+  // ---- Auth Check ----
+  auth.onAuthStateChanged((user) => {
+    if (!user) {
+      Swal.fire("Unauthorized", "Please log in first.", "error").then(() => {
+        window.location.href = "../index.html";
+      });
+    }
+  });
+
   // Append message to chat
   function appendMessage(sender, text) {
     const messageEl = document.createElement("div");
