@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // -------------------- AUTH --------------------
     auth.onAuthStateChanged(user => {
         if (!user) {
-            window.location.href = "../login.html"; // redirect if not logged in
+            window.location.href = "../index.html"; // redirect if not logged in
         } else {
             currentUser = user;
             loadChatThreads();
@@ -101,7 +101,19 @@ document.addEventListener("DOMContentLoaded", () => {
         const msgEl = document.createElement("div");
         msgEl.classList.add("message");
         msgEl.classList.add(msg.senderId === currentUser.uid ? "sent" : "received");
-        msgEl.textContent = msg.text;
+
+        // Format timestamp
+        const time = new Date(msg.timestamp);
+        const hours = time.getHours().toString().padStart(2, '0');
+        const minutes = time.getMinutes().toString().padStart(2, '0');
+        const formattedTime = `${hours}:${minutes}`;
+
+        // Message content + timestamp
+        msgEl.innerHTML = `
+            <span class="message-text">${msg.text}</span>
+            <span class="message-time">${formattedTime}</span>
+        `;
+
         chatMessagesEl.appendChild(msgEl);
         chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
     }

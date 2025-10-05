@@ -347,3 +347,32 @@
         font-size: 0.7rem;
     }
 }
+
+.message {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 12px;
+    max-width: 70%;
+}
+
+.message.sent {
+    background-color: #d1ffd6;
+    align-self: flex-end;
+}
+
+.message.received {
+    background-color: #ffffff;
+    align-self: flex-start;
+}
+
+.message-text {
+    margin-right: 0.5rem;
+}
+
+.message-time {
+    font-size: 0.7rem;
+    color: #888;
+}

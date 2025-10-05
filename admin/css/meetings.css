@@ -46,7 +46,7 @@
   margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 16px;
 }
 
 .meeting-actions button,
@@ -171,6 +171,23 @@
   background: #e5e7eb;
 }
 
+/* Action buttons inside meeting card */
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px; /* increase the gap here */
+  margin-top: 10px;
+}
+
+.card-actions button,
+.card-actions a {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
 .close-btn {
   background: #e74c3c;
   color: white;
@@ -246,7 +263,7 @@
 
 .status-buttons {
   display: flex;
-  gap: 8px;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
