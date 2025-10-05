@@ -600,3 +600,8 @@ body {
         max-width: 100%;
     }
 }
+
+.checkbox-container.small {
+    font-size: 13px;
+    padding-top: 12px;
+}

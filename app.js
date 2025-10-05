@@ -80,3 +80,21 @@ style.textContent = `
     .fade-in { animation: fadeIn 0.5s ease forwards; }
 `;
 document.head.appendChild(style);
+
+// Login password toggle
+document.getElementById('login-show-password').addEventListener('change', function() {
+    const pwd = document.getElementById('login-password');
+    pwd.type = this.checked ? 'text' : 'password';
+});
+
+// Register password toggle
+document.getElementById('register-show-password').addEventListener('change', function() {
+    const pwd = document.getElementById('register-password');
+    pwd.type = this.checked ? 'text' : 'password';
+});
+
+// Register confirm password toggle
+document.getElementById('register-show-confirm-password').addEventListener('change', function() {
+    const pwd = document.getElementById('confirm-password');
+    pwd.type = this.checked ? 'text' : 'password';
+});
