@@ -549,7 +549,7 @@ function updateResourceCounts() {
         all: allResources.length,
         documents: allResources.filter(r => r.category?.toLowerCase().trim() === 'documents').length,
         media: allResources.filter(r => ['images', 'videos'].includes(r.category?.toLowerCase().trim())).length,
-        other: allResources.filter(r => r.category?.toLowerCase().trim() === 'external links').length
+        other: allResources.filter(r => r.category?.toLowerCase().trim() === 'links').length
     };
 
     document.querySelectorAll('.category-card').forEach(card => {
