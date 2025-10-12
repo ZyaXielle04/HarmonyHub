@@ -144,17 +144,28 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const now = Date.now();
+    const isoDate = new Date(now).toISOString();
+
     const announcementData = {
       title,
       content,
       audience,
       status,
-      date: new Date().toISOString()
+      date: isoDate, // keep existing
+      timestamp: now // ✅ added for unified sorting
     };
 
     if (currentEditId) {
-      // Update existing announcement
-      const activityData = { type: "announcement", refId: currentEditId, ...announcementData };
+      // ✅ Update existing announcement
+      const activityData = {
+        type: "announcement",
+        refId: currentEditId,
+        ...announcementData,
+        updatedAt: isoDate, // readable
+        timestamp: now // ensure update reflects in unified feed
+      };
+
       Promise.all([
         announcementsRef.child(currentEditId).update(announcementData),
         activityRef.child(currentEditId).update(activityData)
@@ -165,10 +176,18 @@ document.addEventListener("DOMContentLoaded", () => {
           Swal.fire("Error", "Failed to update announcement.", "error");
         });
     } else {
-      // Create new announcement
+      // ✅ Create new announcement
       const newRef = announcementsRef.push();
       const newId = newRef.key;
-      const activityData = { type: "announcement", refId: newId, ...announcementData };
+
+      const activityData = {
+        type: "announcement",
+        refId: newId,
+        ...announcementData,
+        createdAt: isoDate,
+        timestamp: now
+      };
+
       Promise.all([
         newRef.set(announcementData),
         activityRef.child(newId).set(activityData)

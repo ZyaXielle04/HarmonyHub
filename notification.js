@@ -24,8 +24,10 @@ document.addEventListener("DOMContentLoaded", () => {
     function isAdmin(user) { return user?.role === "admin"; }
     function isStaff(user) { return user?.role === "staff"; }
     function isMember(user) { return user?.role === "member"; }
-    function hasPermission(user, permissionKey) { return !!user?.permissions?.[permissionKey]; }
-    function canAccessUserManagement(user) { return (isAdmin(user) || isStaff(user)) && hasPermission(user, "canVerifyUsers"); }
+    function hasPermission(user, key) { return !!user?.permissions?.[key]; }
+    function canAccessUserManagement(user) { 
+        return (isAdmin(user) || isStaff(user)) && hasPermission(user, "canVerifyUsers"); 
+    }
 
     // ================= AUTH + PERMISSION CHECK =================
     auth.onAuthStateChanged((user) => {
@@ -46,7 +48,18 @@ document.addEventListener("DOMContentLoaded", () => {
     function loadNotifications() {
         database.ref("activity_table").on("value", (snapshot) => {
             const data = snapshot.val() || {};
-            allNotifications = Object.entries(data).map(([id, notif]) => ({ id, ...notif }));
+
+            allNotifications = Object.entries(data).map(([id, notif]) => ({
+                id,
+                ...notif,
+                // 🔥 Ensure every notification has a unified timestamp for sorting
+                timestamp: notif.timestamp 
+                    ? notif.timestamp 
+                    : (notif.createdAt 
+                        ? new Date(notif.createdAt).getTime() 
+                        : (notif.date ? new Date(notif.date).getTime() : 0))
+            }));
+
             renderNotifications("all");
         });
     }
@@ -60,7 +73,8 @@ document.addEventListener("DOMContentLoaded", () => {
             filtered = filtered.filter(n => !n.readBy || !n.readBy[currentUser.uid]);
         }
 
-        filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        // 🔥 Sort newest → oldest by timestamp (unified)
+        filtered.sort((a, b) => b.timestamp - a.timestamp);
 
         if (filtered.length === 0) {
             notifList.innerHTML = `<p class="no-notifs">No notifications</p>`;
@@ -70,12 +84,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
         filtered.forEach((notif) => {
             switch (notif.type) {
-                case "registration": if (canSeeRegistration) renderRegistrationNotif(notif); break;
-                case "resource_upload": renderResourceNotif(notif); break;
-                case "announcement": renderAnnouncementNotif(notif); break;
-                case "schedule": renderScheduleNotif(notif); break;
-                case "meeting": renderMeetingNotif(notif); break;
-                default: console.warn("Unknown notif type:", notif);
+                case "registration":
+                    if (canSeeRegistration) renderRegistrationNotif(notif);
+                    break;
+                case "resource_upload":
+                    renderResourceNotif(notif);
+                    break;
+                case "announcement":
+                    renderAnnouncementNotif(notif);
+                    break;
+                case "schedule":
+                    renderScheduleNotif(notif);
+                    break;
+                case "meeting":
+                    renderMeetingNotif(notif);
+                    break;
+                default:
+                    console.warn("Unknown notif type:", notif);
             }
         });
 
@@ -103,7 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="notif-content">
                 <strong>${data.name}</strong>
                 <small>${data.email}</small><br>
-                <small>${new Date(data.createdAt).toLocaleString()}</small>
+                <small>${new Date(data.timestamp).toLocaleString()}</small>
                 ${actionsHtml}
             </div>
         `;
@@ -120,7 +145,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 database.ref(`users/${data.userId}`).update({ isVerified: true, verificationDate });
                 database.ref(`activity_table/${data.id}`).update({
-                    isVerified: true, verifiedBy: currentUser.name, verificationDate, solved: true
+                    isVerified: true,
+                    verifiedBy: currentUser.name,
+                    verificationDate,
+                    solved: true
                 });
                 database.ref(`activity_table/${data.id}/readBy/${currentUser.uid}`).set(true);
 
@@ -135,8 +163,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderResourceNotif(data) {
         const isUnread = !data.readBy || !data.readBy[currentUser.uid];
         const access = data.accessLevel || "public";
-        let canView = isAdmin(currentUser) || (isStaff(currentUser) && (access === "public" || access === "staff")) || (isMember(currentUser) && (access === "public" || access === "members"));
-        if (!canView) return;
+        if (!canViewResource(data)) return;
 
         const notifItem = document.createElement("div");
         notifItem.className = `notif-item ${isUnread ? "unread" : ""}`;
@@ -173,7 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="notif-avatar">📢</div>
             <div class="notif-content">
                 <strong>Announcement:</strong> ${data.title}<br>
-                <small>${new Date(data.date).toLocaleString()}</small>
+                <small>${new Date(data.timestamp).toLocaleString()}</small>
             </div>
         `;
 
@@ -220,7 +247,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // ================= MEETING NOTIFICATION =================
     function renderMeetingNotif(data) {
         const isUnread = !data.readBy || !data.readBy[currentUser.uid];
-
         const notifItem = document.createElement("div");
         notifItem.className = `notif-item ${isUnread ? "unread" : ""}`;
         notifItem.id = `notif-${data.id}`;
@@ -258,31 +284,25 @@ document.addEventListener("DOMContentLoaded", () => {
     // ================= BADGE HANDLING =================
     function updateBadge() {
         if (!currentUser) return;
-
         const visibleUnreadCount = allNotifications.filter(n => {
-            const canSee = 
+            const canSee =
                 (n.type === "registration" && canSeeRegistration) ||
                 (n.type === "resource_upload" && canViewResource(n)) ||
                 (n.type === "announcement") ||
                 (n.type === "schedule") ||
                 (n.type === "meeting");
-
             return canSee && (!n.readBy || !n.readBy[currentUser.uid]);
         }).length;
-
-        if (visibleUnreadCount > 0) {
-            badge.style.display = "inline-block";
-        } else {
-            badge.style.display = "none";
-        }
+        badge.style.display = visibleUnreadCount > 0 ? "inline-block" : "none";
     }
 
     function canViewResource(data) {
         const access = data.accessLevel || "public";
-        return isAdmin(currentUser) || 
-            (isStaff(currentUser) && (access === "public" || access === "staff")) || 
+        return isAdmin(currentUser) ||
+            (isStaff(currentUser) && (access === "public" || access === "staff")) ||
             (isMember(currentUser) && (access === "public" || access === "members"));
     }
+
     function resetBadge() { badge.style.display = "none"; }
 
     // ================= TAB SWITCHING =================

@@ -143,37 +143,60 @@ function loadUserData() {
 function fetchResources() {
     const resourcesContainer = document.getElementById('resources-container');
     resourcesContainer.innerHTML = '<div class="loading-state">Loading resources...</div>';
-    
+
     const resourcesRef = firebase.database().ref('resources');
-    
-    resourcesRef.once('value')
+
+    resourcesRef
+        .once('value')
         .then((snapshot) => {
             allResources = [];
             snapshot.forEach((childSnapshot) => {
                 const resource = childSnapshot.val();
                 resource.id = childSnapshot.key;
-                
+
+                const bytes = resource.cloudinaryData?.bytes || 0;
+
+                // ✅ Convert bytes to readable size (only for Documents & Media)
+                if (['documents', 'images', 'videos'].includes(resource.category?.toLowerCase())) {
+                    resource.fileSize = formatFileSize(bytes);
+                } else {
+                    resource.fileSize = ''; // no size for “Other”
+                }
+
+                // ✅ Only add allowed resources
                 if (resource.accessLevel === 'public' || resource.accessLevel === 'members') {
                     allResources.push(resource);
                 }
             });
-            
+
+            // ✅ Once data is ready, update the display
             filteredResources = [...allResources];
             displayResources();
-            updateResourceCounts();
 
-            // ✅ Refresh favorites AFTER resources are loaded
-            updateFavoritesDisplay();
+            // ✅ Small delay to ensure DOM finished rendering before updating counts
+            setTimeout(() => {
+                updateResourceCounts();
+                updateFavoritesDisplay();
+            }, 100);
         })
         .catch((error) => {
             console.error('Error fetching resources:', error);
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: 'Failed to load resources. Please try again.',
+                text: `Failed to load resources: ${error.message}`,
             });
         });
 }
+
+function formatFileSize(bytes) {
+    if (!bytes || isNaN(bytes)) return 'Unknown';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const exponent = Math.floor(Math.log(bytes) / Math.log(1024));
+    const size = bytes / Math.pow(1024, exponent);
+    return `${size.toFixed(2)} ${units[exponent]}`;
+}
+
 
 function displayResources() {
     const resourcesContainer = document.getElementById('resources-container');
@@ -203,8 +226,9 @@ function createResourceCard(resource) {
     // Determine icon based on file type or category
     const icon = getResourceIcon(resource);
     
-    // Format file size (you might need to add this to your Firebase data)
-    const fileSize = resource.fileSize || 'Unknown';
+    // Format file size — hide if it's a link
+    const isLink = resource.category?.toLowerCase().trim() === 'links';
+    const fileSize = isLink ? '' : (resource.fileSize || '');
     
     // Format upload date
     const uploadDate = new Date(resource.uploadDate).toLocaleDateString();
@@ -223,16 +247,20 @@ function createResourceCard(resource) {
                 <button class="action-btn favorite-btn" title="${favoriteTitle}">
                     <i class="${favoriteIcon}"></i>
                 </button>
-                <button class="action-btn download-btn" title="Download">
-                    <i class="fas fa-download"></i>
-                </button>
+                ${resource.category?.toLowerCase().trim() === 'links'
+                    ? `<a href="${resource.fileUrl}" target="_blank" class="action-btn link-btn" title="Open Link">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>`
+                    : `<button class="action-btn download-btn" title="Download">
+                        <i class="fas fa-download"></i>
+                    </button>`}
             </div>
         </div>
         <div class="resource-content">
             <h4>${resource.name}</h4>
             <p>${resource.description}</p>
             <div class="resource-meta">
-                <span class="resource-size">${fileSize}</span>
+                ${fileSize ? `<span class="resource-size">${fileSize}</span>` : ''}
                 <span class="resource-date">Added: ${uploadDate}</span>
             </div>
         </div>
@@ -491,15 +519,44 @@ function downloadResource(button) {
 function filterResourcesByCategory(category) {
     if (category === 'all') {
         filteredResources = [...allResources];
-    } else {
-        filteredResources = allResources.filter(resource => resource.category === category);
+    } 
+    else if (category === 'documents') {
+        filteredResources = allResources.filter(resource =>
+            resource.category &&
+            resource.category.toLowerCase().trim() === 'documents'
+        );
+    } 
+    else if (category === 'media') {
+        filteredResources = allResources.filter(resource =>
+            resource.category &&
+            ['images', 'videos'].includes(resource.category.toLowerCase().trim())
+        );
+    } 
+    else if (category === 'other') {
+        filteredResources = allResources.filter(resource =>
+            resource.category &&
+            resource.category.toLowerCase().trim() === 'links'
+        );
     }
-    
+
     displayResources();
     updateResourceCounts();
-    
-    // Update URL parameter for category
     updateURLParams('category', category);
+}
+
+function updateResourceCounts() {
+    const counts = {
+        all: allResources.length,
+        documents: allResources.filter(r => r.category?.toLowerCase().trim() === 'documents').length,
+        media: allResources.filter(r => ['images', 'videos'].includes(r.category?.toLowerCase().trim())).length,
+        other: allResources.filter(r => r.category?.toLowerCase().trim() === 'external links').length
+    };
+
+    document.querySelectorAll('.category-card').forEach(card => {
+        const cat = card.getAttribute('data-category');
+        const count = counts[cat] || 0;
+        card.querySelector('.category-count').textContent = count;
+    });
 }
 
 function filterResourcesBySearch(query) {
@@ -556,28 +613,6 @@ function toggleView(view) {
     
     // Update URL parameter for view
     updateURLParams('view', view);
-}
-
-function updateResourceCounts() {
-    // Count resources by category
-    const counts = {
-        all: allResources.length,
-        documents: allResources.filter(r => r.category === 'documents').length,
-        guides: allResources.filter(r => r.category === 'guides').length,
-        templates: allResources.filter(r => r.category === 'templates').length,
-        media: allResources.filter(r => r.category === 'media').length,
-        other: allResources.filter(r => r.category === 'other').length
-    };
-    
-    // Update category cards with counts
-    const categoryCards = document.querySelectorAll('.category-card');
-    categoryCards.forEach(card => {
-        const category = card.getAttribute('data-category');
-        const countElement = card.querySelector('.resource-count');
-        if (countElement && counts[category] !== undefined) {
-            countElement.textContent = counts[category];
-        }
-    });
 }
 
 function loadMoreResources() {

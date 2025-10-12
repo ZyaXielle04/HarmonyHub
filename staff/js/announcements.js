@@ -186,8 +186,9 @@ document.addEventListener("DOMContentLoaded", () => {
     previewText.textContent = content;
   });
 
-  modalForm.addEventListener("submit", (e) => {
+  modalForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+
     if (!canAnnounce) {
       Swal.fire("Unauthorized", "You don't have permission to create or edit announcements.", "error");
       return;
@@ -203,28 +204,67 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const now = Date.now();
+    const isoDate = new Date(now).toISOString();
+
     const data = {
       title,
       content,
       audience,
       status,
-      date: Date.now(),
+      date: isoDate,     // readable format
+      timestamp: now,    // unified sorting format
     };
 
-    if (editingId) {
-      announcementsRef.child(editingId).update(data)
-        .then(() => {
-          Swal.fire("Updated!", "Announcement updated successfully.", "success");
-          modal.style.display = "none";
-        })
-        .catch(() => Swal.fire("Error", "Failed to update announcement.", "error"));
-    } else {
-      announcementsRef.push(data)
-        .then(() => {
-          Swal.fire("Created!", "Announcement created successfully.", "success");
-          modal.style.display = "none";
-        })
-        .catch(() => Swal.fire("Error", "Failed to create announcement.", "error"));
+    try {
+      if (editingId) {
+        // === UPDATE EXISTING ANNOUNCEMENT ===
+        await announcementsRef.child(editingId).update(data);
+
+        // Update activity_table entry (optional if you want mirrored updates)
+        const activityRef = database.ref("activity_table");
+        const activitySnapshot = await activityRef
+          .orderByChild("relatedId")
+          .equalTo(editingId)
+          .once("value");
+
+        if (activitySnapshot.exists()) {
+          activitySnapshot.forEach((child) => {
+            child.ref.update({
+              title: `Updated Announcement: ${title}`,
+              message: content,
+              timestamp: now,
+            });
+          });
+        }
+
+        Swal.fire("Updated!", "Announcement updated successfully.", "success");
+      } else {
+        // === CREATE NEW ANNOUNCEMENT ===
+        const newAnnRef = await announcementsRef.push(data);
+
+        // ✅ Log to activity_table (only for authorized announcers)
+        if (canAnnounce) {
+          const activityData = {
+            type: "announcement",
+            title: `New Announcement: ${title}`,
+            message: content,
+            audience,
+            authorRole: "staff",
+            relatedId: newAnnRef.key,
+            timestamp: now,
+          };
+
+          await database.ref("activity_table").push(activityData);
+        }
+
+        Swal.fire("Created!", "Announcement created successfully.", "success");
+      }
+
+      modal.style.display = "none";
+    } catch (err) {
+      console.error(err);
+      Swal.fire("Error", "Something went wrong while saving the announcement.", "error");
     }
   });
 

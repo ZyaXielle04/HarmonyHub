@@ -516,13 +516,13 @@ function saveResourceToDatabase(name, description, category, accessLevel, fileUr
             submitBtn.textContent = 'Save Resource';
         }
 
-        if (!currentEditId) {
+        // 🔹 Log to activity table only if user can announce
+        if (!currentEditId && window.currentUserCanAnnounce) {
             logResourceActivity(resourceData, ref.key, resourceData.uploadedBy);
         }
     }).catch(err => {
         console.error('Error saving resource:', err);
         Swal.fire('Error', 'Failed to save resource. Please try again.', 'error');
-
         const submitBtn = document.getElementById('submit-resource-btn');
         if (submitBtn) {
             submitBtn.disabled = false;

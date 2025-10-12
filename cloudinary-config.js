@@ -1,5 +1,5 @@
 // Cloudinary configuration - replace with your actual cloud name
-const cloudinaryConfig = {
+window.cloudinaryConfig = {
     cloudName: 'dwp3zume8',
     uploadPreset: 'user-uploads',
     sources: ['local', 'url', 'camera'],

@@ -85,7 +85,8 @@ if (registerForm) {
                             email: userData.email,
                             role: userData.role,
                             createdAt: userData.createdAt,
-                            solved: false
+                            solved: false,
+                            timestamp: Date.now() // ✅ Added for consistent sorting
                         };
                         return database.ref('activity_table').push(activityData);
                     });

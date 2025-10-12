@@ -1,4 +1,5 @@
 // meetings.js
+// Updated: Beautified meeting card buttons + delete button
 
 document.addEventListener("DOMContentLoaded", () => {
   const auth = firebase.auth();
@@ -23,7 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let selectedMeetingId = null;
   let attendanceRecords = {};
 
-  // ✅ Check auth & role
+  // ---------- AUTH ----------
   auth.onAuthStateChanged(async (user) => {
     if (!user) {
       Swal.fire("Unauthorized", "You must log in first!", "error");
@@ -44,14 +45,14 @@ document.addEventListener("DOMContentLoaded", () => {
     loadMeetings();
   });
 
-  // ✅ Load Meetings
+  // ---------- LOAD MEETINGS ----------
   function loadMeetings() {
     db.ref("meetings").on("value", (snapshot) => {
       meetingsContainer.innerHTML = "";
 
       if (!snapshot.exists()) {
         meetingsContainer.innerHTML = `
-            <p class="no-meetings-msg">📭 No meetings scheduled yet.</p>
+          <p class="no-meetings-msg">📭 No meetings scheduled yet.</p>
         `;
         return;
       }
@@ -62,34 +63,76 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const card = document.createElement("div");
         card.classList.add("meeting-card");
+        card.style.cssText = `
+          border: 1px solid #444;
+          border-radius: 12px;
+          background: #FFFFFF;
+          padding: 16px;
+          margin: 10px 0;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        `;
 
         let actions = "";
 
         if (meeting.finished) {
           actions = `
-            <button class="btn-secondary view-attendance-btn" data-id="${key}">View Attendance</button>
+            <div class="button-group">
+              <button class="btn-secondary view-attendance-btn" data-id="${key}">👁 View Attendance</button>
+              <button class="btn-danger delete-meeting-btn" data-id="${key}">🗑 Delete</button>
+            </div>
           `;
         } else {
           actions = `
-            <a href="https://zoom.us/j/${meeting.meetingId}?pwd=${meeting.passcode}" 
-                target="_blank" class="btn-primary">Join Meeting</a>
-            <button class="btn-secondary take-attendance-btn" data-id="${key}">Take Attendance</button>
-            <button class="btn-danger finish-meeting-btn" data-id="${key}">Finish Meeting</button>
+            <div class="button-group">
+              <a href="https://zoom.us/j/${meeting.meetingId}?pwd=${meeting.passcode}" target="_blank" class="btn-primary">💻 Join</a>
+              <button class="btn-secondary take-attendance-btn" data-id="${key}">📝 Take Attendance</button>
+              <button class="btn-success finish-meeting-btn" data-id="${key}">✅ Finish</button>
+              <button class="btn-danger delete-meeting-btn" data-id="${key}">🗑 Delete</button>
+            </div>
           `;
         }
 
         card.innerHTML = `
-            <h3>Meeting ID: ${meeting.meetingId}</h3>
-            <p><b>Passcode:</b> ${meeting.passcode}</p>
-            <p><b>Date:</b> ${meeting.date}</p>
-            <p><b>Time:</b> ${meeting.time}</p>
-            <div class="card-actions">${actions}</div>
+          <h3>Meeting ID: <span>${meeting.meetingId}</span></h3>
+          <p><b>Passcode:</b> ${meeting.passcode}</p>
+          <p><b>Date:</b> ${meeting.date}</p>
+          <p><b>Time:</b> ${meeting.time}</p>
+          ${actions}
         `;
 
         meetingsContainer.appendChild(card);
       });
 
-      // Attach listeners
+      // Add button styling
+      const style = document.createElement("style");
+      style.textContent = `
+        .button-group {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 10px;
+        }
+        .btn-primary, .btn-secondary, .btn-success, .btn-danger {
+          border: none;
+          border-radius: 6px;
+          padding: 8px 14px;
+          color: white;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .btn-primary { background: #007bff; }
+        .btn-primary:hover { background: #0069d9; }
+        .btn-secondary { background: #6c757d; }
+        .btn-secondary:hover { background: #5a6268; }
+        .btn-success { background: #28a745; }
+        .btn-success:hover { background: #218838; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+      `;
+      document.head.appendChild(style);
+
+      // Attach event listeners
       document.querySelectorAll(".take-attendance-btn").forEach((btn) => {
         btn.addEventListener("click", (e) => {
           selectedMeetingId = e.target.dataset.id;
@@ -99,21 +142,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
       document.querySelectorAll(".finish-meeting-btn").forEach((btn) => {
         btn.addEventListener("click", (e) => {
-          const meetingKey = e.target.dataset.id;
-          finishMeeting(meetingKey);
+          finishMeeting(e.target.dataset.id);
         });
       });
 
       document.querySelectorAll(".view-attendance-btn").forEach((btn) => {
         btn.addEventListener("click", (e) => {
-          const meetingKey = e.target.dataset.id;
-          openViewAttendanceModal(meetingKey);
+          openViewAttendanceModal(e.target.dataset.id);
+        });
+      });
+
+      document.querySelectorAll(".delete-meeting-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          deleteMeeting(e.target.dataset.id);
         });
       });
     });
   }
 
-  // ✅ Add Meeting
+  // ---------- ADD MEETING ----------
   addMeetingBtn.addEventListener("click", () => {
     addMeetingModal.style.display = "block";
   });
@@ -125,22 +172,68 @@ document.addEventListener("DOMContentLoaded", () => {
   meetingForm.addEventListener("submit", (e) => {
     e.preventDefault();
 
+    const now = Date.now();
+
     const meetingData = {
       meetingId: document.getElementById("meeting-id").value,
       passcode: document.getElementById("meeting-passcode").value,
       date: document.getElementById("meeting-date").value,
       time: document.getElementById("meeting-time").value,
       finished: false,
+      timestamp: now,
     };
 
-    db.ref("meetings").push(meetingData).then(() => {
-      Swal.fire("Success", "Meeting scheduled successfully!", "success");
-      meetingForm.reset();
-      addMeetingModal.style.display = "none";
-    });
+    const newMeetingRef = db.ref("meetings").push();
+
+    newMeetingRef
+      .set(meetingData)
+      .then(() => {
+        const activityData = {
+          type: "meeting_created",
+          meetingId: meetingData.meetingId,
+          passcode: meetingData.passcode,
+          date: meetingData.date,
+          time: meetingData.time,
+          createdBy: currentUser.uid,
+          createdAt: new Date().toISOString(),
+          timestamp: now,
+          readBy: {}
+        };
+        return db.ref("activity_table").child(newMeetingRef.key).set(activityData);
+      })
+      .then(() => {
+        Swal.fire("Success", "Meeting scheduled successfully!", "success");
+        meetingForm.reset();
+        addMeetingModal.style.display = "none";
+      })
+      .catch((error) => {
+        Swal.fire("Error", error.message, "error");
+      });
   });
 
-  // ✅ Attendance Modal
+  // ---------- DELETE MEETING ----------
+  function deleteMeeting(meetingKey) {
+    Swal.fire({
+      title: "Delete this meeting?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Yes, delete it"
+    }).then((result) => {
+      if (result.isConfirmed) {
+        db.ref(`meetings/${meetingKey}`).remove()
+          .then(() => db.ref(`activity_table/${meetingKey}`).remove())
+          .then(() => {
+            Swal.fire("Deleted!", "Meeting and related activity have been removed.", "success");
+          })
+          .catch((error) => Swal.fire("Error", error.message, "error"));
+      }
+    });
+  }
+
+  // ---------- ATTENDANCE ----------
   function openAttendanceModal(meetingKey) {
     attendanceUsersContainer.innerHTML = "";
     attendanceRecords = {};
@@ -149,11 +242,10 @@ document.addEventListener("DOMContentLoaded", () => {
       snapshot.forEach((child) => {
         const user = child.val();
         if (user.role !== "admin") {
-          attendanceRecords[child.key] = "absent"; // default
+          attendanceRecords[child.key] = "absent";
 
           const div = document.createElement("div");
           div.classList.add("attendance-user");
-
           div.innerHTML = `
             <p><b>${user.name || "Unnamed User"}</b></p>
             <div class="status-buttons">
@@ -167,15 +259,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
 
-      // Attach listeners
       document.querySelectorAll(".status-btn").forEach((btn) => {
         btn.addEventListener("click", (e) => {
           const userId = e.target.dataset.user;
           const status = e.target.dataset.status;
-
           attendanceRecords[userId] = status;
-
-          // Highlight selected
           const siblings = e.target.parentNode.querySelectorAll(".status-btn");
           siblings.forEach((b) => b.classList.remove("active"));
           e.target.classList.add("active");
@@ -192,7 +280,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   attendanceForm.addEventListener("submit", (e) => {
     e.preventDefault();
-
     db.ref(`meetings/${selectedMeetingId}/attendance`).set({
       date: new Date().toISOString(),
       attendees: attendanceRecords,
@@ -202,14 +289,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // ✅ Finish Meeting
+  // ---------- FINISH MEETING ----------
   function finishMeeting(meetingKey) {
     db.ref(`meetings/${meetingKey}`).update({ finished: true }).then(() => {
       Swal.fire("Meeting Finished", "You can now view attendance records.", "success");
     });
   }
 
-  // ✅ View Attendance Modal
+  // ---------- VIEW ATTENDANCE ----------
   function openViewAttendanceModal(meetingKey) {
     viewAttendanceContainer.innerHTML = "";
 
@@ -227,10 +314,10 @@ document.addEventListener("DOMContentLoaded", () => {
           const user = uSnap.val();
           const div = document.createElement("div");
           div.classList.add("attendance-user");
-            div.innerHTML = `
+          div.innerHTML = `
             <span class="user-name">${user?.name || "Unnamed User"}</span>
             <span class="status ${status}">${status}</span>
-            `;
+          `;
           viewAttendanceContainer.appendChild(div);
         });
       });

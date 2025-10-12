@@ -501,17 +501,18 @@ function saveResourceToDatabase(name, description, category, accessLevel, fileUr
     const db = firebase.database();
     const currentUser = firebase.auth().currentUser;
 
+    const now = Date.now();
     const resourceData = {
         name: name,
         description: description,
         category: category,
         accessLevel: accessLevel,
         fileUrl: fileUrl,
-        uploadDate: Date.now(),
+        uploadDate: now,     // existing field (for legacy display)
+        timestamp: now,      // new field (for sorting by recency)
         uploadedBy: currentUser.uid
     };
 
-    // Add Cloudinary data if available
     if (cloudinaryData) {
         resourceData.cloudinaryData = cloudinaryData;
     }
@@ -527,7 +528,7 @@ function saveResourceToDatabase(name, description, category, accessLevel, fileUr
         submitBtn.disabled = false;
         submitBtn.textContent = 'Save Resource';
 
-        // ✅ Log activity if new resource is added
+        // ✅ Only log to activity_table when adding a *new* resource
         if (!currentEditId) {
             logResourceActivity(resourceData, ref.key, currentUser.uid);
         }
@@ -552,8 +553,9 @@ function logResourceActivity(resourceData, resourceId, userId) {
         category: resourceData.category,
         accessLevel: resourceData.accessLevel,
         uploadedBy: userId,
-        timestamp: Date.now(),
-        readBy: {} // start with empty read receipts
+        createdAt: new Date().toISOString(), // readable
+        timestamp: Date.now(),                // numeric (for sorting)
+        readBy: {}
     };
 
     db.ref("activity_table").push(activity);
@@ -750,24 +752,81 @@ function previewResource(resourceId) {
 }
 
 // Show delete confirmation modal
+// Show delete confirmation modal or alert
 function showDeleteConfirmation(resourceId) {
     currentDeleteId = resourceId;
-    document.getElementById('delete-confirm-modal').style.display = 'flex';
+    Swal.fire({
+        title: 'Are you sure?',
+        text: 'This resource will be permanently deleted.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            confirmDeleteResource();
+        }
+    });
+}
+
+// Confirm deletion and remove resource from Firebase
+function confirmDeleteResource() {
+    if (!currentDeleteId) return;
+
+    const db = firebase.database();
+    const resourceRef = db.ref('resources/' + currentDeleteId);
+
+    resourceRef
+        .remove()
+        .then(() => {
+            // ✅ Also delete from activity_table if linked
+            db.ref('activity_table')
+                .orderByChild('resourceId')
+                .equalTo(currentDeleteId)
+                .once('value', (snapshot) => {
+                    snapshot.forEach((child) => {
+                        db.ref('activity_table/' + child.key).remove();
+                    });
+                });
+
+            Swal.fire('Deleted!', 'The resource has been deleted.', 'success');
+            currentDeleteId = null;
+            loadResources(); // refresh grid
+        })
+        .catch((error) => {
+            console.error('Error deleting resource:', error);
+            Swal.fire('Error', 'Failed to delete resource. Please try again.', 'error');
+        });
 }
 
 // Confirm resource deletion
 function confirmDeleteResource() {
     if (!currentDeleteId) return;
-    
+
     const db = firebase.database();
-    db.ref('resources/' + currentDeleteId).remove().then(() => {
-        Swal.fire('Success', 'Resource deleted successfully!', 'success');
-        closeModals();
-        loadResources();
-    }).catch((error) => {
-        console.error('Error deleting resource:', error);
-        Swal.fire('Error', 'Failed to delete resource. Please try again.', 'error');
-    });
+    const resourceRef = db.ref('resources/' + currentDeleteId);
+
+    resourceRef
+        .remove()
+        .then(() => {
+            // ✅ Also delete from activity_table if linked
+            db.ref('activity_table')
+                .orderByChild('resourceId')
+                .equalTo(currentDeleteId)
+                .once('value', (snapshot) => {
+                    snapshot.forEach((child) => {
+                        db.ref('activity_table/' + child.key).remove();
+                    });
+                });
+
+            Swal.fire('Deleted!', 'The resource has been deleted.', 'success');
+            currentDeleteId = null;
+            loadResources(); // refresh grid
+        })
+        .catch((error) => {
+            console.error('Error deleting resource:', error);
+            Swal.fire('Error', 'Failed to delete resource. Please try again.', 'error');
+        });
 }
 
 // Close all modals

@@ -70,29 +70,39 @@ document.addEventListener("DOMContentLoaded", () => {
           time: document.getElementById("meeting-time").value,
           finished: false,
           createdBy: currentUser.name || "Staff Member",
+          createdAt: new Date().toISOString(), // keep for legacy
         };
 
         // Save meeting
         const newMeetingRef = db.ref("meetings").push();
         const meetingKey = newMeetingRef.key;
 
-        newMeetingRef.set(meetingData)
+        newMeetingRef
+          .set(meetingData)
           .then(() => {
-            // Also write to /activity_table
-            const activityData = {
-              type: "meeting",
-              meetingId: meetingData.meetingId,
-              passcode: meetingData.passcode,
-              date: meetingData.date,
-              time: meetingData.time,
-              createdBy: meetingData.createdBy,
-            };
-            return db.ref("activity_table").child(meetingKey).set(activityData);
+            // ✅ Only log to activity_table if staff has permission
+            if (canInitializeMeetings) {
+              const activityData = {
+                type: "meeting",
+                meetingId: meetingData.meetingId,
+                passcode: meetingData.passcode,
+                date: meetingData.date,
+                time: meetingData.time,
+                createdBy: meetingData.createdBy,
+                createdAt: meetingData.createdAt, // legacy
+                timestamp: Date.now(), // ✅ unified timestamp for sorting
+              };
+              return db.ref("activity_table").child(meetingKey).set(activityData);
+            }
           })
           .then(() => {
             Swal.fire("Success", "Meeting scheduled successfully!", "success");
             meetingForm.reset();
             addMeetingModal.style.display = "none";
+          })
+          .catch((error) => {
+            console.error("Error creating meeting:", error);
+            Swal.fire("Error", "Failed to schedule meeting.", "error");
           });
       });
     }

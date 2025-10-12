@@ -14,6 +14,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <script src="https://upload-widget.cloudinary.com/global/all.js"></script>
 </head>
 <body>
 
@@ -38,7 +40,7 @@
             </nav>
             <div class="user-section">
                 <div class="user-info">
-                    <div class="user-avatar">ME</div>
+                    <img class="user-avatar">
                     <div class="user-details">
                         <p class="user-name">Member User</p>
                         <p class="user-role">Member</p>
@@ -105,22 +107,6 @@
                             <h4>Documents</h4>
                             <p>PDFs, Word files, and more</p>
                             <span class="resource-count">8</span>
-                        </div>
-                        <div class="category-card" data-category="guides">
-                            <div class="category-icon">
-                                <i class="fas fa-book"></i>
-                            </div>
-                            <h4>Guides</h4>
-                            <p>Tutorials and how-to guides</p>
-                            <span class="resource-count">6</span>
-                        </div>
-                        <div class="category-card" data-category="templates">
-                            <div class="category-icon">
-                                <i class="fas fa-clone"></i>
-                            </div>
-                            <h4>Templates</h4>
-                            <p>Ready-to-use templates</p>
-                            <span class="resource-count">5</span>
                         </div>
                         <div class="category-card" data-category="media">
                             <div class="category-icon">
@@ -373,6 +359,7 @@
     </div>
 
     <script src="../firebase-config.js"></script>
+    <script src="../cloudinary-config.js"></script>
     <script src="../member/js/base.js"></script>
     <script src="../member/js/resources.js"></script>
     <script src="../notification.js"></script>

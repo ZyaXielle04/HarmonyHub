@@ -107,13 +107,15 @@ document.addEventListener("DOMContentLoaded", () => {
       .then(() => {
         // Save to /activity_table with same ID
         const activityData = {
-          type: "schedule",       // fixed type for activity_table
-          start,
-          end,
-          title,
-          scheduleType: type      // copy from schedule.type
-        };
-        return db.ref("activity_table").child(scheduleId).set(activityData);
+        type: "schedule",       // fixed type for activity_table
+        start,
+        end,
+        title,
+        scheduleType: type,     // copy from schedule.type
+        timestamp: Date.now()   // 🔥 new unified timestamp for sorting
+      };
+
+      return db.ref("activity_table").child(scheduleId).set(activityData);
       })
       .then(() => {
         Swal.fire("Success", "Schedule added successfully!", "success");

@@ -102,11 +102,16 @@ document.addEventListener("DOMContentLoaded", () => {
         msgEl.classList.add("message");
         msgEl.classList.add(msg.senderId === currentUser.uid ? "sent" : "received");
 
-        // Format timestamp
+        // Format timestamp to human-readable string
         const time = new Date(msg.timestamp);
-        const hours = time.getHours().toString().padStart(2, '0');
-        const minutes = time.getMinutes().toString().padStart(2, '0');
-        const formattedTime = `${hours}:${minutes}`;
+        const formattedTime = time.toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
 
         // Message content + timestamp
         msgEl.innerHTML = `

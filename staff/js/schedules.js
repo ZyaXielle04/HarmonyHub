@@ -147,19 +147,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const newScheduleRef = db.ref("schedules").push();
     const scheduleId = newScheduleRef.key;
-    const scheduleData = { title, start, end, type };
+    const scheduleData = {
+      title,
+      start,
+      end,
+      type,
+      createdBy: auth.currentUser?.uid || "unknown",
+      timestamp: Date.now() // ✅ Unified timestamp field
+    };
 
-    // Save to schedules and activity_table
+    // Save schedule
     newScheduleRef.set(scheduleData)
       .then(() => {
-        const activityData = {
-          type: "schedule",
-          start,
-          end,
-          title,
-          scheduleType: type
-        };
-        return db.ref("activity_table").child(scheduleId).set(activityData);
+        // 🔹 Only add to activity_table if staff has permission (intentional notification)
+        if (canAppoint) {
+          const activityData = {
+            type: "schedule",
+            title,
+            start,
+            end,
+            scheduleType: type,
+            createdBy: scheduleData.createdBy,
+            timestamp: scheduleData.timestamp // ✅ use timestamp for notification sorting
+          };
+          return db.ref("activity_table").child(scheduleId).set(activityData);
+        }
       })
       .then(() => {
         Swal.fire("Success", "Schedule added successfully!", "success");
