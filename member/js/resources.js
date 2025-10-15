@@ -547,15 +547,28 @@ function filterResourcesByCategory(category) {
 function updateResourceCounts() {
     const counts = {
         all: allResources.length,
-        documents: allResources.filter(r => r.category?.toLowerCase().trim() === 'documents').length,
-        media: allResources.filter(r => ['images', 'videos'].includes(r.category?.toLowerCase().trim())).length,
-        other: allResources.filter(r => r.category?.toLowerCase().trim() === 'links').length
+        documents: 0,
+        media: 0,
+        other: 0
     };
 
+    allResources.forEach(resource => {
+        const cat = (resource.category || '').toLowerCase().trim();
+
+        if (cat === 'documents') {
+            counts.documents++;
+        } else if (cat === 'images' || cat === 'videos') {
+            counts.media++;
+        } else if (cat === 'links') {
+            counts.other++;
+        }
+    });
+
+    // Update the badges in HTML
     document.querySelectorAll('.category-card').forEach(card => {
-        const cat = card.getAttribute('data-category');
-        const count = counts[cat] || 0;
-        card.querySelector('.category-count').textContent = count;
+        const cat = card.getAttribute('data-category').toLowerCase().trim();
+        const badge = card.querySelector('.resource-count');
+        if (badge) badge.textContent = counts[cat] || 0;
     });
 }
 

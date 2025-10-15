@@ -50,29 +50,33 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ========================= RECENT ACTIVITY =========================
     function loadRecentActivity() {
         const activities = [];
 
         const fetchData = [
-            { ref: 'announcements', icon: 'fa-bullhorn', type: 'Announcement' },
-            { ref: 'resources', icon: 'fa-file-alt', type: 'Resource' },
-            { ref: 'events', icon: 'fa-calendar-plus', type: 'Event' },
-            { ref: 'meetings', icon: 'fa-video', type: 'Meeting' }
+            { ref: 'announcements', icon: 'fa-bullhorn', type: 'Announcement', timeField: 'date' },
+            { ref: 'resources', icon: 'fa-file-alt', type: 'Resource', timeField: 'uploadDate' },
+            { ref: 'schedules', icon: 'fa-calendar-plus', type: 'Schedule', timeField: 'start' },
+            { ref: 'meetings', icon: 'fa-video', type: 'Meeting', timeField: 'date' }
         ];
 
+        // Fetch latest 3 from each
         Promise.all(fetchData.map(item =>
-            db.ref(item.ref).limitToLast(3).once('value')
+            firebase.database().ref(item.ref).limitToLast(3).once('value')
         )).then(snapshots => {
             snapshots.forEach((snap, i) => {
                 snap.forEach(child => {
                     const data = child.val();
                     if (data) {
+                        let timeValue = data[fetchData[i].timeField];
+                        let timestamp = timeValue ? new Date(timeValue).getTime() : Date.now();
+
                         activities.push({
                             icon: fetchData[i].icon,
                             type: fetchData[i].type,
-                            title: data.title || data.name || 'Untitled',
-                            timestamp: data.timestamp || data.date || Date.now()
+                            title: data.title || data.name || data.meetingId || 'Untitled',
+                            timestamp: timestamp,
+                            category: fetchData[i].ref
                         });
                     }
                 });
@@ -81,25 +85,81 @@ document.addEventListener('DOMContentLoaded', function () {
             // Sort by timestamp descending
             activities.sort((a, b) => b.timestamp - a.timestamp);
 
-            // Display latest 5
-            activityListEl.innerHTML = '';
-            activities.slice(0, 5).forEach(act => {
-                const timeAgo = getTimeAgo(act.timestamp);
-                const item = document.createElement('div');
-                item.className = 'activity-item';
-                item.innerHTML = `
-                    <div class="activity-icon"><i class="fas ${act.icon}"></i></div>
-                    <div class="activity-content">
-                        <p>New ${act.type}: ${act.title}</p>
-                        <span class="activity-time">${timeAgo}</span>
-                    </div>
-                `;
-                activityListEl.appendChild(item);
-            });
+            // Display only 3 latest items
+            renderActivityList(activities.slice(0, 3));
+
+            // Store all for "View All"
+            window.allRecentActivities = activities;
         }).catch(err => console.error('Activity Load Error:', err));
     }
 
-    // ========================= UPCOMING EVENTS =========================
+    document.getElementById('view-all-activity').addEventListener('click', () => {
+        if (!window.allRecentActivities) return;
+
+        const modalContent = document.createElement('div');
+        modalContent.className = 'activity-modal-content';
+
+        const categories = ['announcements', 'resources', 'schedules', 'meetings'];
+
+        categories.forEach(cat => {
+            const catActivities = window.allRecentActivities
+                .filter(a => a.category === cat)
+                .sort((a,b) => b.timestamp - a.timestamp);
+
+            if (catActivities.length) {
+                const section = document.createElement('div');
+                section.innerHTML = `<h4>${cat.charAt(0).toUpperCase() + cat.slice(1)}</h4>`;
+                
+                catActivities.forEach(act => {
+                    const timeAgo = getTimeAgo(act.timestamp);
+                    const item = document.createElement('div');
+                    item.className = 'activity-item';
+                    item.innerHTML = `
+                        <div class="activity-icon"><i class="fas ${act.icon}"></i></div>
+                        <div class="activity-content">
+                            <p>New ${act.type}: ${act.title}</p>
+                            <span class="activity-time">${timeAgo}</span>
+                        </div>
+                    `;
+                    section.appendChild(item);
+                });
+
+                modalContent.appendChild(section);
+            }
+        });
+
+        // Open SweetAlert2 modal
+        Swal.fire({
+            title: 'All Recent Activity',
+            html: modalContent,
+            width: '600px',
+            showCloseButton: true,
+            showConfirmButton: false,
+            customClass: {
+                popup: 'activity-modal'
+            }
+        });
+    });
+
+    // Helper to render a list of activities
+    function renderActivityList(activityArray) {
+        const activityListEl = document.getElementById('activity-list');
+        activityListEl.innerHTML = '';
+        activityArray.forEach(act => {
+            const timeAgo = getTimeAgo(act.timestamp);
+            const item = document.createElement('div');
+            item.className = 'activity-item';
+            item.innerHTML = `
+                <div class="activity-icon"><i class="fas ${act.icon}"></i></div>
+                <div class="activity-content">
+                    <p>New ${act.type}: ${act.title}</p>
+                    <span class="activity-time">${timeAgo}</span>
+                </div>
+            `;
+            activityListEl.appendChild(item);
+        });
+    }
+
     // ========================= UPCOMING EVENTS =========================
     function loadUpcomingEvents() {
         const now = new Date();
