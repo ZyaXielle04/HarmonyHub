@@ -7,7 +7,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // UI Elements
   const announcementsList = document.getElementById("announcements-container");
   const searchInput = document.getElementById("announcement-search");
-  const priorityFilter = document.getElementById("priority-filter");
   const dateFilter = document.getElementById("date-filter");
   const loadMoreBtn = document.getElementById("load-more-btn");
 
@@ -20,7 +19,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const authUser = JSON.parse(localStorage.getItem("authUser")) || {};
   const userRole = authUser.role || "member";
 
-  // Fetch announcements from Firebase
   // Fetch announcements from Firebase
   announcementsRef.on("value", (snapshot) => {
     if (snapshot.exists()) {
@@ -41,7 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Render announcement item (no action buttons)
+  // Render announcement item
   function createAnnouncementItem(announcement) {
     const item = document.createElement("div");
     item.classList.add("announcement-item");
@@ -70,6 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
       visibleAnnouncements,
       visibleAnnouncements + PAGE_SIZE
     );
+
     nextAnnouncements.forEach((a) =>
       announcementsList.appendChild(createAnnouncementItem(a))
     );
@@ -84,18 +83,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   loadMoreBtn.addEventListener("click", loadMoreAnnouncements);
 
-  // Filters
+  // Filters (search + date)
   function applyFilters() {
     const search = searchInput.value.toLowerCase();
-    const priority = priorityFilter.value;
     const dateOption = dateFilter.value;
-
     const now = new Date();
 
     announcementsList.innerHTML = "";
-    allAnnouncements.forEach((a) => {
+
+    const filtered = allAnnouncements.filter((a) => {
       let matches = true;
 
+      // Search match
       if (
         search &&
         !a.title.toLowerCase().includes(search) &&
@@ -104,33 +103,40 @@ document.addEventListener("DOMContentLoaded", () => {
         matches = false;
       }
 
-      if (priority !== "all" && a.priority !== priority) {
-        matches = false;
-      }
-
+      // Date filter match
       if (dateOption !== "all") {
         const aDate = new Date(a.date);
         if (dateOption === "today") {
-          matches =
-            aDate.toDateString() === now.toDateString() ? matches : false;
+          matches = aDate.toDateString() === now.toDateString();
         } else if (dateOption === "week") {
           const weekAgo = new Date();
           weekAgo.setDate(now.getDate() - 7);
-          matches = aDate >= weekAgo ? matches : false;
+          matches = aDate >= weekAgo;
         } else if (dateOption === "month") {
           const monthAgo = new Date();
           monthAgo.setMonth(now.getMonth() - 1);
-          matches = aDate >= monthAgo ? matches : false;
+          matches = aDate >= monthAgo;
         }
       }
 
-      if (matches) {
-        announcementsList.appendChild(createAnnouncementItem(a));
-      }
+      return matches;
     });
+
+    if (filtered.length === 0) {
+      announcementsList.innerHTML = `<p>No matching announcements found.</p>`;
+      loadMoreBtn.style.display = "none";
+      return;
+    }
+
+    filtered.slice(0, PAGE_SIZE).forEach((a) => {
+      announcementsList.appendChild(createAnnouncementItem(a));
+    });
+
+    loadMoreBtn.style.display =
+      filtered.length > PAGE_SIZE ? "block" : "none";
   }
 
+  // Event listeners for filters
   searchInput.addEventListener("input", applyFilters);
-  priorityFilter.addEventListener("change", applyFilters);
   dateFilter.addEventListener("change", applyFilters);
 });

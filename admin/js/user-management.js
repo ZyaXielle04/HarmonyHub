@@ -514,15 +514,37 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmButtonText: 'Yes, delete!'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Delete user from Firebase
-                database.ref(`users/${user.id}`).remove()
+                const admin = auth.currentUser;
+
+                if (!admin) {
+                    showAlert('error', 'Unauthorized', 'You must be logged in as admin to perform this action.');
+                    return;
+                }
+
+                const deletedUserId = user.id;
+
+                // Step 1: Remove the user
+                database.ref(`users/${deletedUserId}`).remove()
                     .then(() => {
-                        showAlert('success', 'Deleted!', 'User has been deleted successfully.');
-                        // No need to reload users - real-time listener will update automatically
+                        // Step 2: Log the deletion in /activity_table
+                        const newActivityRef = database.ref('activity_table').push();
+                        const activityLog = {
+                            type: 'registration',
+                            action: 'delete_user',
+                            deletedBy: admin.uid,
+                            deletedUserId: deletedUserId,
+                            deletedUserEmail: user.email || null,
+                            timestamp: Date.now()
+                        };
+
+                        return newActivityRef.set(activityLog);
+                    })
+                    .then(() => {
+                        showAlert('success', 'Deleted!', `${user.name || user.email} was deleted and logged successfully.`);
                     })
                     .catch(error => {
-                        console.error('Error deleting user:', error);
-                        showAlert('error', 'Error', 'Failed to delete user. Please try again.');
+                        console.error('Error deleting user or logging activity:', error);
+                        showAlert('error', 'Error', 'Failed to delete user or log activity.');
                     });
             }
         });

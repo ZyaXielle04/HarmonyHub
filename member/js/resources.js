@@ -645,14 +645,13 @@ function loadMoreResources() {
 function openResourceModal(resourceCard) {
     const resourceId = resourceCard.getAttribute('data-id');
     const resource = allResources.find(r => r.id === resourceId);
-    
     if (!resource) return;
-    
+
     const modal = document.getElementById('resource-modal');
     const icon = getResourceIcon(resource);
     const uploadDate = new Date(resource.uploadDate).toLocaleDateString();
     const isFavorite = favorites.includes(resourceId);
-    
+
     // Update modal content
     document.getElementById('modal-title').textContent = resource.name;
     document.getElementById('preview-title').textContent = resource.name;
@@ -660,11 +659,116 @@ function openResourceModal(resourceCard) {
     document.getElementById('preview-size').textContent = `Size: ${resource.fileSize || 'Unknown'}`;
     document.getElementById('preview-date').textContent = `Added: ${uploadDate}`;
     document.getElementById('preview-category').textContent = `Category: ${resource.category}`;
-    
+
     // Update modal icon
     const previewIcon = document.querySelector('.preview-icon i');
     previewIcon.className = icon;
-    
+
+    // === 🆕 RESOURCE PREVIEW SECTION ===
+    const previewArea = document.getElementById('preview-area');
+    if (previewArea) {
+        previewArea.innerHTML = ''; // clear previous preview
+
+        const fileUrl = resource.fileUrl;
+        const extension = fileUrl?.split('.').pop().toLowerCase() || '';
+        const category = (resource.category || '').toLowerCase().trim();
+
+        let previewContent = '';
+
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
+            previewContent = `<img src="${fileUrl}" alt="Preview Image" class="resource-preview-img">`;
+        } 
+        else if (['mp4', 'webm', 'ogg', 'mov'].includes(extension)) {
+            previewContent = `
+                <video class="resource-preview-video" controls>
+                    <source src="${fileUrl}" type="video/${extension}">
+                    Your browser does not support video playback.
+                </video>`;
+        } 
+        else if (extension === 'pdf') {
+            previewContent = `
+                <iframe src="${fileUrl}" class="resource-preview-pdf" frameborder="0"></iframe>`;
+        } 
+        else if (category === 'links') {
+            previewContent = `
+                <div class="resource-preview-link">
+                    <p>This is an external link resource.</p>
+                    <a href="${fileUrl}" target="_blank" class="btn-open-link">
+                        <i class="fas fa-external-link-alt"></i> Open Link
+                    </a>
+                </div>`;
+        } 
+        else {
+            previewContent = `
+                <div class="resource-preview-unavailable">
+                    <i class="fas fa-file"></i>
+                    <p>Preview not available for this file type.</p>
+                </div>`;
+        }
+
+        previewArea.innerHTML = previewContent;
+    }
+
+    const previewStyle = document.createElement('style');
+    previewStyle.textContent = `
+    .resource-preview-area {
+        margin-top: 1rem;
+        text-align: center;
+        max-height: 500px;
+        overflow: hidden;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        background: #f8f9fa;
+        padding: 0.5rem;
+    }
+
+    .resource-preview-img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+    }
+
+    .resource-preview-video {
+        width: 100%;
+        max-height: 400px;
+        border-radius: 8px;
+        outline: none;
+    }
+
+    .resource-preview-pdf {
+        width: 100%;
+        height: 500px;
+        border-radius: 8px;
+        border: none;
+    }
+
+    .resource-preview-link {
+        padding: 1rem;
+        text-align: center;
+    }
+
+    .btn-open-link {
+        display: inline-block;
+        background: #007bff;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        text-decoration: none;
+        transition: 0.2s;
+    }
+
+    .btn-open-link:hover {
+        background: #0056b3;
+    }
+
+    .resource-preview-unavailable {
+        padding: 2rem;
+        text-align: center;
+        color: #6c757d;
+    }
+    `;
+    document.head.appendChild(previewStyle);
+
     // Update favorite button
     const favoriteBtn = document.getElementById('modal-favorite');
     const favoriteIcon = favoriteBtn.querySelector('i');
@@ -675,19 +779,20 @@ function openResourceModal(resourceCard) {
         favoriteIcon.className = 'far fa-heart';
         favoriteBtn.innerHTML = '<i class="far fa-heart"></i> Add to Favorites';
     }
-    
-    // Set up modal button events
+
+    // Favorite button click
     favoriteBtn.onclick = () => {
         const favoriteButton = resourceCard.querySelector('.favorite-btn');
         toggleFavorite(favoriteButton);
         closeResourceModal();
     };
-    
+
+    // Download button click
     document.getElementById('modal-download').onclick = () => {
         const downloadButton = resourceCard.querySelector('.download-btn');
         downloadResource(downloadButton);
     };
-    
+
     // Show modal
     modal.classList.add('active');
 }

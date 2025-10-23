@@ -2,154 +2,89 @@ document.addEventListener('DOMContentLoaded', function() {
     const sidebar = document.querySelector('.sidebar');
     const sidebarToggle = document.querySelector('.sidebar-toggle');
     const logoutBtn = document.querySelector('.logout-btn');
-    const name = document.querySelector('.user-name');
-    const role = document.querySelector('.user-role');
+    const nameEl = document.querySelector('.user-name');
+    const roleEl = document.querySelector('.user-role');
     const userAvatar = document.querySelector('.user-avatar');
 
-    const userData = JSON.parse(sessionStorage.getItem('authUser'));
-    if (userData){
-        name.textContent = userData.name || 'User';
-        role.textContent = userData.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1) : 'Member';
+    // ===== AUTH USER LOADING =====
+    const userDataRaw = sessionStorage.getItem('authUser');
+    let userData = null;
 
-        // ===== AVATAR DISPLAY =====
-        if (userData.fileURL) {
-            if (userAvatar.tagName === 'IMG') {
-                userAvatar.src = `${userData.fileURL}?v=${Date.now()}`;
+    try {
+        if (userDataRaw) userData = JSON.parse(userDataRaw);
+    } catch (err) {
+        console.error('Error parsing authUser:', err);
+    }
+
+    if (userData) {
+        // ===== DISPLAY NAME =====
+        if (nameEl) {
+            nameEl.textContent = userData.name?.trim() || 'User';
+        }
+
+        // ===== DISPLAY ROLE =====
+        if (roleEl) {
+            if (userData.role) {
+                const capitalized =
+                    userData.role.charAt(0).toUpperCase() + userData.role.slice(1);
+                roleEl.textContent = capitalized;
             } else {
-                userAvatar.style.backgroundImage = `url('${userData.fileURL}?v=${Date.now()}')`;
+                roleEl.textContent = 'Admin';
             }
         }
+
+        // ===== AVATAR DISPLAY =====
+        if (userAvatar && userData.fileURL) {
+            const avatarURL = `${userData.fileURL}?v=${Date.now()}`;
+            if (userAvatar.tagName === 'IMG') {
+                userAvatar.src = avatarURL;
+            } else {
+                userAvatar.style.backgroundImage = `url('${avatarURL}')`;
+                userAvatar.style.backgroundSize = 'cover';
+                userAvatar.style.backgroundPosition = 'center';
+            }
+        }
+    } else {
+        console.warn('No authUser found in sessionStorage.');
     }
 
-    // ===== AVATAR UPLOAD =====
-    if (userAvatar && userData) {
-        userAvatar.style.cursor = 'pointer';
-        userAvatar.title = 'Click to change profile picture';
-
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-        fileInput.style.display = 'none';
-        document.body.appendChild(fileInput);
-
-        userAvatar.addEventListener('click', () => fileInput.click());
-
-        fileInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            if (!file.type.startsWith('image/')) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Invalid File',
-                    text: 'Please upload an image file only.',
-                    background: '#2c3e50',
-                    color: '#fff'
-                });
-                return;
-            }
-
-            Swal.fire({
-                title: 'Uploading...',
-                text: 'Please wait while we upload your profile picture.',
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading(),
-                background: '#2c3e50',
-                color: '#fff'
-            });
-
-            try {
-                const { cloudName, uploadPreset, uploadFolder } = window.cloudinaryConfig;
-
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('upload_preset', uploadPreset);
-                formData.append('folder', uploadFolder || 'harmonyhub/users');
-
-                const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-                    method: 'POST',
-                    body: formData
-                });
-                const cloudinaryData = await cloudinaryRes.json();
-                if (!cloudinaryData.secure_url) throw new Error('Upload failed. Please try again.');
-
-                const fileURL = cloudinaryData.secure_url;
-
-                // --- Update Firebase user
-                const usersRef = firebase.database().ref('users');
-                const snapshot = await usersRef.once('value');
-                let userUID = null;
-                snapshot.forEach((child) => {
-                    const user = child.val();
-                    if (user.email && user.email === userData.email) userUID = child.key;
-                });
-                if (!userUID) throw new Error('User not found in database.');
-
-                const userRef = firebase.database().ref(`/users/${userUID}`);
-                await userRef.update({ cloudinaryData, fileURL });
-
-                userData.fileURL = fileURL;
-                sessionStorage.setItem('authUser', JSON.stringify(userData));
-
-                if (userAvatar.tagName === 'IMG') userAvatar.src = `${fileURL}?v=${Date.now()}`;
-                else userAvatar.style.backgroundImage = `url('${fileURL}?v=${Date.now()}')`;
-
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Profile Updated!',
-                    text: 'Your profile picture has been uploaded successfully.',
-                    background: '#2c3e50',
-                    color: '#fff',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-
-            } catch (error) {
-                console.error('Upload error:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Upload Failed',
-                    text: error.message,
-                    background: '#2c3e50',
-                    color: '#fff'
-                });
-            }
-        });
-    }
-
-    // ===== SIDEBAR LOGIC =====
+    // ===== SIDEBAR RESPONSIVENESS =====
     function checkScreenSize() {
+        if (!sidebar || !sidebarToggle) return;
         if (window.innerWidth <= 1024) {
             sidebar.classList.remove('mobile-collapsed');
-            if (sidebarToggle) sidebarToggle.style.display = 'flex';
+            sidebarToggle.style.display = 'flex';
             updateToggleIcon();
         } else {
             sidebar.classList.remove('mobile-collapsed');
-            if (sidebarToggle) sidebarToggle.style.display = 'none';
+            sidebarToggle.style.display = 'none';
         }
     }
 
     function updateToggleIcon() {
-        if (window.innerWidth <= 1024) {
-            sidebarToggle.innerHTML = sidebar.classList.contains('mobile-collapsed')
-                ? '<i class="fas fa-times"></i>'
-                : '<i class="fas fa-bars"></i>';
-        }
+        if (!sidebarToggle || window.innerWidth > 1024) return;
+        sidebarToggle.innerHTML = sidebar.classList.contains('mobile-collapsed')
+            ? '<i class="fas fa-times"></i>'
+            : '<i class="fas fa-bars"></i>';
     }
 
     if (sidebarToggle) {
-        sidebarToggle.addEventListener('click', function(e) {
+        sidebarToggle.addEventListener('click', (e) => {
             e.stopPropagation();
             sidebar.classList.toggle('mobile-collapsed');
             updateToggleIcon();
         });
     }
 
-    document.addEventListener('click', function(event) {
-        if (window.innerWidth <= 1024 &&
+    document.addEventListener('click', (event) => {
+        if (
+            window.innerWidth <= 1024 &&
+            sidebar &&
             !sidebar.contains(event.target) &&
+            sidebarToggle &&
             !sidebarToggle.contains(event.target) &&
-            sidebar.classList.contains('mobile-collapsed')) {
+            sidebar.classList.contains('mobile-collapsed')
+        ) {
             sidebar.classList.remove('mobile-collapsed');
             updateToggleIcon();
         }
@@ -162,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            
+
             Swal.fire({
                 title: 'Logout Confirmation',
                 text: 'Are you sure you want to logout?',

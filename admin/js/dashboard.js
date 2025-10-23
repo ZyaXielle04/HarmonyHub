@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!data) throw new Error("User data not found!");
 
       const role = data.role || "member";
-      const displayName = data.displayName || "User";
+      const displayName = data.name || "User";
 
       // --- Update Sidebar User Info ---
       const avatarEl = document.querySelector(".user-avatar");
@@ -43,7 +43,19 @@ document.addEventListener("DOMContentLoaded", () => {
         return startDate.toDateString() === today;
       }).length;
       const totalResources = resourcesSnap.numChildren();
-      const liveMeetings = Object.values(meetingsSnap.val() || {}).filter(m => m.status === "live").length;
+      // --- Compute Live Meetings ---
+      const now = new Date();
+      const meetingsData = Object.values(meetingsSnap.val() || {});
+
+      const liveMeetings = meetingsData.filter(m => {
+        if (!m.date || !m.time || m.finished === undefined) return false;
+
+        // Combine date + time (e.g. "2025-10-18 05:25") into a valid Date object
+        const meetingDateTime = new Date(`${m.date}T${m.time}:00`);
+
+        // Meeting is live if current time is after scheduled time and finished == false
+        return now > meetingDateTime && m.finished === false;
+      }).length;
 
       const statsMap = {
         ".stat-card:nth-child(1) .stat-value": totalUsers,

@@ -1,4 +1,4 @@
-// assist.js - Handles AI Assistant (Gemini Chatbot)
+// assist.js - Handles AI Assistant (Gemini Chatbot with Markdown rendering)
 
 document.addEventListener("DOMContentLoaded", () => {
   const chatBox = document.getElementById("chat-box");
@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Append message to chat
+  // Append message to chat (supports Markdown)
   function appendMessage(sender, text) {
     const messageEl = document.createElement("div");
     messageEl.classList.add("message", sender);
@@ -25,12 +25,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const textEl = document.createElement("div");
     textEl.classList.add("text");
-    textEl.textContent = text;
+
+    // ✅ Render Markdown only for bot messages
+    if (sender === "bot") {
+      textEl.innerHTML = marked.parse(text); // Render markdown
+    } else {
+      textEl.textContent = text; // plain text for user
+    }
 
     messageEl.appendChild(avatar);
     messageEl.appendChild(textEl);
-
     chatBox.appendChild(messageEl);
+
     chatBox.scrollTop = chatBox.scrollHeight;
   }
 
@@ -49,7 +55,6 @@ document.addEventListener("DOMContentLoaded", () => {
     chatBox.scrollTop = chatBox.scrollHeight;
 
     try {
-      // ✅ Use relative URL so it works locally & in deployment
       const response = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -77,6 +82,5 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Enter") sendMessage();
   });
 
-  // Focus input on load
   userInput.focus();
 });

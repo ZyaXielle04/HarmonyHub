@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const verifiedUsersEl = document.getElementById('verified-users');
     const pendingUsersEl = document.getElementById('pending-users');
     const staffUsersEl = document.getElementById('staff-users');
+    const searchInput = document.getElementById('user-search'); // ✅ search bar element
 
     let users = [];
     let currentEditingUser = null;
@@ -52,6 +53,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 usersRef = database.ref('users');
                 setupRealtimeUsersListener(canVerify, canPromote);
 
+                // ✅ attach search handler
+                if (searchInput) {
+                    searchInput.addEventListener('input', e => {
+                        const query = e.target.value.toLowerCase().trim();
+                        const filtered = users.filter(u =>
+                            (u.name && u.name.toLowerCase().includes(query)) ||
+                            (u.email && u.email.toLowerCase().includes(query))
+                        );
+                        renderUsers(filtered, canVerify, canPromote);
+                    });
+                }
+
             } catch (err) {
                 console.error(err);
                 showAlert("error", "Error", "Failed to verify permissions.");
@@ -77,6 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
+            // ✅ initial render
             renderUsers(users, canVerify, canPromote);
             updateStatistics(users, staffCount);
             loadingIndicator.style.display = 'none';
@@ -92,6 +106,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const members = usersToRender.filter(u => u.role === 'member');
         if (members.length === 0) {
             noUsersMessage.style.display = 'block';
+            noUsersMessage.textContent = 'No users found.';
             return;
         }
         noUsersMessage.style.display = 'none';

@@ -115,45 +115,66 @@ document.addEventListener("DOMContentLoaded", () => {
         notifItem.id = `notif-${data.id}`;
 
         let actionsHtml = "";
-        if (!data.solved) {
-            actionsHtml = `<div class="notif-actions"><button class="notif-approve">Verify Account</button></div>`;
-        } else {
-            actionsHtml = data.verifiedBy
-                ? `<div class="notif-status">✅ Verified by ${data.verifiedBy} on ${new Date(data.verificationDate).toLocaleString()}</div>`
-                : `<div class="notif-status">✔️ Solved</div>`;
-        }
 
-        notifItem.innerHTML = `
-            <div class="notif-avatar">${data.name.charAt(0).toUpperCase()}</div>
-            <div class="notif-content">
-                <strong>${data.name}</strong>
-                <small>${data.email}</small><br>
-                <small>${new Date(data.timestamp).toLocaleString()}</small>
-                ${actionsHtml}
-            </div>
-        `;
+        // 🔥 If user was deleted (has deletedBy field)
+        if (data.deletedBy) {
+            // Try to fetch the name of the one who deleted the user
+            database.ref(`users/${data.deletedBy}/name`).once("value").then((snap) => {
+                const deleterName = snap.val() || "Unknown Admin";
 
-        notifItem.addEventListener("click", () => {
-            markAsRead(data.id);
-            window.location.href = "user-management.html";
-        });
-
-        if (!data.solved) {
-            notifItem.querySelector(".notif-approve").addEventListener("click", (e) => {
-                e.stopPropagation();
-                const verificationDate = new Date().toISOString();
-
-                database.ref(`users/${data.userId}`).update({ isVerified: true, verificationDate });
-                database.ref(`activity_table/${data.id}`).update({
-                    isVerified: true,
-                    verifiedBy: currentUser.name,
-                    verificationDate,
-                    solved: true
-                });
-                database.ref(`activity_table/${data.id}/readBy/${currentUser.uid}`).set(true);
-
-                Swal.fire("✅ Verified", `${data.name} is now verified.`, "success");
+                notifItem.innerHTML = `
+                    <div class="notif-avatar">${data.name?.charAt(0).toUpperCase() || "U"}</div>
+                    <div class="notif-content">
+                        <strong>${data.name || "Unnamed User"}</strong><br>
+                        <small>${data.email || "No email"}</small><br>
+                        <small>${new Date(data.timestamp).toLocaleString()}</small><br>
+                        <div class="notif-status" style="color:red;">❌ Deleted by: ${deleterName}</div>
+                    </div>
+                `;
             });
+        }
+        else {
+            // Normal verified / unverified logic
+            if (!data.solved) {
+                actionsHtml = `<div class="notif-actions"><button class="notif-approve">Verify Account</button></div>`;
+            } else {
+                actionsHtml = data.verifiedBy
+                    ? `<div class="notif-status">✅ Verified by ${data.verifiedBy} on ${new Date(data.verificationDate).toLocaleString()}</div>`
+                    : `<div class="notif-status">✔️ Solved</div>`;
+            }
+
+            notifItem.innerHTML = `
+                <div class="notif-avatar">${data.name?.charAt(0).toUpperCase() || "U"}</div>
+                <div class="notif-content">
+                    <strong>${data.name || "Unnamed User"}</strong><br>
+                    <small>${data.email || "No email"}</small><br>
+                    <small>${new Date(data.timestamp).toLocaleString()}</small>
+                    ${actionsHtml}
+                </div>
+            `;
+
+            notifItem.addEventListener("click", () => {
+                markAsRead(data.id);
+                window.location.href = "user-management.html";
+            });
+
+            if (!data.solved) {
+                notifItem.querySelector(".notif-approve").addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    const verificationDate = new Date().toISOString();
+
+                    database.ref(`users/${data.userId}`).update({ isVerified: true, verificationDate });
+                    database.ref(`activity_table/${data.id}`).update({
+                        isVerified: true,
+                        verifiedBy: currentUser.name,
+                        verificationDate,
+                        solved: true
+                    });
+                    database.ref(`activity_table/${data.id}/readBy/${currentUser.uid}`).set(true);
+
+                    Swal.fire("✅ Verified", `${data.name} is now verified.`, "success");
+                });
+            }
         }
 
         notifList.prepend(notifItem);

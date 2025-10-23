@@ -344,23 +344,29 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ---------- SEARCH & FILTER ----------
-  searchInput?.addEventListener("input", () => {
-    const query = searchInput.value.toLowerCase();
-    const cards = document.querySelectorAll(".announcement-card");
+  const audienceFilter = document.getElementById("audience-filter");
 
+  function applyFilters() {
+    const query = searchInput?.value.toLowerCase() || "";
+    const statusFilterValue = filterSelect?.value.toLowerCase() || "all";
+    const audienceFilterValue = audienceFilter?.value.toLowerCase() || "all";
+
+    const cards = document.querySelectorAll(".announcement-card");
     cards.forEach((card) => {
       const title = card.querySelector(".card-title").textContent.toLowerCase();
-      card.style.display = title.includes(query) ? "flex" : "none";
-    });
-  });
-
-  filterSelect?.addEventListener("change", () => {
-    const filter = filterSelect.value;
-    const cards = document.querySelectorAll(".announcement-card");
-
-    cards.forEach((card) => {
       const status = card.querySelector(".card-status").textContent.toLowerCase();
-      card.style.display = filter === "all" || status === filter ? "flex" : "none";
+      const audienceText = card.querySelector(".card-audience").textContent.toLowerCase();
+
+      const matchesSearch = title.includes(query);
+      const matchesStatus = statusFilterValue === "all" || status === statusFilterValue;
+      const matchesAudience =
+        audienceFilterValue === "all" || audienceText.includes(audienceFilterValue.replace("_", " "));
+
+      card.style.display = matchesSearch && matchesStatus && matchesAudience ? "flex" : "none";
     });
-  });
+  }
+
+  searchInput?.addEventListener("input", applyFilters);
+  filterSelect?.addEventListener("change", applyFilters);
+  audienceFilter?.addEventListener("change", applyFilters);
 });
