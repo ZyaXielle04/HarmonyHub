@@ -1,7 +1,5 @@
 // ================================
 // Staff Announcements Page Script
-// Requires: Firebase Auth + Database + SweetAlert2
-// Permission required: /canAnnounce = true
 // ================================
 document.addEventListener("DOMContentLoaded", () => {
   const auth = firebase.auth();
@@ -13,6 +11,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const filterSelect = document.getElementById("status-filter");
   const loadingIndicator = document.querySelector(".loading-indicator");
   const noDataMessage = document.querySelector(".no-data-message");
+
+  // Counter elements
+  const totalEl = document.getElementById("total-announcements");
+  const publishedEl = document.getElementById("published-announcements");
+  const draftEl = document.getElementById("draft-announcements");
 
   const modal = document.getElementById("announcement-modal");
   const modalTitle = document.getElementById("modal-title");
@@ -55,11 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
 
-        // Hide CRUD buttons if not allowed
-        if (!canAnnounce && createBtn) {
-          createBtn.style.display = "none";
-        }
-
+        if (!canAnnounce && createBtn) createBtn.style.display = "none";
         loadAnnouncements();
       })
       .catch((err) => {
@@ -79,6 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!snapshot.exists()) {
         noDataMessage.style.display = "block";
+        updateAnnouncementStats([]); // Reset counters
         return;
       }
 
@@ -93,7 +93,19 @@ document.addEventListener("DOMContentLoaded", () => {
       // Sort latest first
       announcements.reverse();
       displayAnnouncements(announcements);
+      updateAnnouncementStats(announcements); // ✅ update counters
     });
+  }
+
+  // ---------- UPDATE COUNTERS ----------
+  function updateAnnouncementStats(list) {
+    const total = list.length;
+    const published = list.filter(a => a.status === "published").length;
+    const draft = list.filter(a => a.status === "draft").length;
+
+    totalEl.textContent = total;
+    publishedEl.textContent = published;
+    draftEl.textContent = draft;
   }
 
   // ---------- DISPLAY ANNOUNCEMENTS ----------
@@ -105,20 +117,16 @@ document.addEventListener("DOMContentLoaded", () => {
       card.classList.add("announcement-card");
 
       const statusClass = ann.status || "unknown";
-      const date = ann.date
-        ? new Date(ann.date).toLocaleString()
-        : "Unknown";
+      const date = ann.date ? new Date(ann.date).toLocaleString() : "Unknown";
 
       let audienceText = "All";
       switch (ann.audience) {
         case "members_only":
-          audienceText = "Members Only";
-          break;
+          audienceText = "Members Only"; break;
         case "staff_only":
-          audienceText = "Staff Only";
-          break;
+          audienceText = "Staff Only"; break;
         case "all_users":
-            audienceText = "All Users";
+          audienceText = "All Users"; break;
       }
 
       card.innerHTML = `
@@ -140,10 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       `;
 
-      // --- View always works ---
       card.querySelector(".view-btn").addEventListener("click", () => viewAnnouncement(ann.id));
-
-      // --- Edit/Delete only if allowed ---
       if (canAnnounce) {
         card.querySelector(".edit-btn").addEventListener("click", () => editAnnouncement(ann.id));
         card.querySelector(".delete-btn").addEventListener("click", () => deleteAnnouncement(ann.id));
@@ -164,27 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  closeModalBtn.addEventListener("click", () => {
-    modal.style.display = "none";
-  });
-
-  previewBtn.addEventListener("click", () => {
-    const title = titleField.value.trim();
-    const content = contentField.value.trim();
-    const audience = audienceField.value;
-    const status = statusField.value;
-
-    if (!title || !content) {
-      Swal.fire("Missing Info", "Please fill out all fields before previewing.", "warning");
-      return;
-    }
-
-    previewContent.style.display = "block";
-    previewContent.querySelector("h3").textContent = title;
-    previewContent.querySelector("p.audience span").textContent = audience;
-    previewContent.querySelector("p.status span").textContent = status || "Unknown";
-    previewText.textContent = content;
-  });
+  closeModalBtn.addEventListener("click", () => (modal.style.display = "none"));
 
   modalForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -207,57 +192,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const now = Date.now();
     const isoDate = new Date(now).toISOString();
 
-    const data = {
-      title,
-      content,
-      audience,
-      status,
-      date: isoDate,     // readable format
-      timestamp: now,    // unified sorting format
-    };
+    const data = { title, content, audience, status, date: isoDate, timestamp: now };
 
     try {
       if (editingId) {
-        // === UPDATE EXISTING ANNOUNCEMENT ===
         await announcementsRef.child(editingId).update(data);
-
-        // Update activity_table entry (optional if you want mirrored updates)
-        const activityRef = database.ref("activity_table");
-        const activitySnapshot = await activityRef
-          .orderByChild("relatedId")
-          .equalTo(editingId)
-          .once("value");
-
-        if (activitySnapshot.exists()) {
-          activitySnapshot.forEach((child) => {
-            child.ref.update({
-              title: `Updated Announcement: ${title}`,
-              message: content,
-              timestamp: now,
-            });
-          });
-        }
-
         Swal.fire("Updated!", "Announcement updated successfully.", "success");
       } else {
-        // === CREATE NEW ANNOUNCEMENT ===
-        const newAnnRef = await announcementsRef.push(data);
-
-        // ✅ Log to activity_table (only for authorized announcers)
-        if (canAnnounce) {
-          const activityData = {
-            type: "announcement",
-            title: `New Announcement: ${title}`,
-            message: content,
-            audience,
-            authorRole: "staff",
-            relatedId: newAnnRef.key,
-            timestamp: now,
-          };
-
-          await database.ref("activity_table").push(activityData);
-        }
-
+        await announcementsRef.push(data);
         Swal.fire("Created!", "Announcement created successfully.", "success");
       }
 
@@ -276,20 +218,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
       let audienceText = "All";
       switch (ann.audience) {
-        case "members_only":
-          audienceText = "Members Only";
-          break;
-        case "staff_only":
-          audienceText = "Staff Only";
-          break;
-        case "all_users":
-            audienceText = "All Users";
+        case "members_only": audienceText = "Members Only"; break;
+        case "staff_only": audienceText = "Staff Only"; break;
+        case "all_users": audienceText = "All Users";
       }
 
       Swal.fire({
         title: ann.title,
         html: `
-          <p><strong>Audience:</strong> ${audienceText || "All"}</p>
+          <p><strong>Audience:</strong> ${audienceText}</p>
           <p><strong>Status:</strong> ${ann.status || "Unknown"}</p>
           <p><strong>Date:</strong> ${new Date(ann.date).toLocaleString()}</p>
           <hr/>
@@ -305,23 +242,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const ann = snap.val();
       if (!ann) return;
 
-      let audienceText = "All";
-      switch (ann.audience) {
-        case "members_only":
-          audienceText = "Members Only";
-          break;
-        case "staff_only":
-          audienceText = "Staff Only";
-          break;
-        case "all_users":
-            audienceText = "All Users";
-      }
-
       editingId = id;
       modalTitle.textContent = "Edit Announcement";
       titleField.value = ann.title;
       contentField.value = ann.content;
-      audienceField.value = audienceText || "all";
+      audienceField.value = ann.audience || "all_users";
       statusField.value = ann.status || "draft";
       modal.style.display = "flex";
     });
@@ -345,7 +270,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ---------- SEARCH & FILTER ----------
   const audienceFilter = document.getElementById("audience-filter");
-
   function applyFilters() {
     const query = searchInput?.value.toLowerCase() || "";
     const statusFilterValue = filterSelect?.value.toLowerCase() || "all";
@@ -360,7 +284,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const matchesSearch = title.includes(query);
       const matchesStatus = statusFilterValue === "all" || status === statusFilterValue;
       const matchesAudience =
-        audienceFilterValue === "all" || audienceText.includes(audienceFilterValue.replace("_", " "));
+        audienceFilterValue === "all" ||
+        audienceText.includes(audienceFilterValue.replace("_", " "));
 
       card.style.display = matchesSearch && matchesStatus && matchesAudience ? "flex" : "none";
     });

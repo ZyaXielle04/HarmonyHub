@@ -26,8 +26,11 @@ document.addEventListener("DOMContentLoaded", () => {
       allAnnouncements = Object.keys(data)
         .map((id) => ({ id, ...data[id] }))
         .filter((a) => {
-          // Only show if audience is "members_only" or "all_users"
-          return a.audience === "members_only" || a.audience === "all_users";
+          // ✅ Only show if NOT draft and correct audience
+          const isVisibleAudience =
+            a.audience === "members_only" || a.audience === "all_users";
+          const isPublished = a.status !== "draft";
+          return isVisibleAudience && isPublished;
         })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
