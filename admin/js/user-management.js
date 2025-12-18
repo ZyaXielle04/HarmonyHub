@@ -183,8 +183,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     <button class="user-action-btn btn-demote" data-userid="${user.id}" data-action="demote">
                         <i class="fas fa-level-down-alt"></i> Demote User
                     </button>` : ''}
-                <button class="user-action-btn btn-delete" data-userid="${user.id}" data-action="delete">
-                    <i class="fas fa-trash"></i> Delete User
+                <button class="user-action-btn btn-archive" data-userid="${user.id}" data-action="archive">
+                    <i class="fas fa-mailbox"></i> Archive User
                 </button>
             </div>
         `;
