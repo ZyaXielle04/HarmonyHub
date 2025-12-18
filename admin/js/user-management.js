@@ -160,10 +160,6 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="user-card-details">
                 <div class="user-detail-item">
-                    <span class="user-detail-label">Email:</span>
-                    <span class="user-detail-value">${user.email || 'Unknown'}</span>
-                </div>
-                <div class="user-detail-item">
                     <span class="user-detail-label">Joined:</span>
                     <span class="user-detail-value">${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}</span>
                 </div>
