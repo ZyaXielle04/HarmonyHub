@@ -797,6 +797,19 @@ function openResourceModal(resourceCard) {
     modal.classList.add('active');
 }
 
+// Fullscreen toggle
+const fullscreenBtn = document.getElementById('modal-fullscreen');
+fullscreenBtn.addEventListener('click', () => {
+    const fileElement = document.querySelector('.resource-preview-img, .resource-preview-video, .resource-preview-pdf');
+    if (!fileElement) return;
+
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        fileElement.requestFullscreen().catch(err => console.error(err));
+    }
+});
+
 function closeResourceModal() {
     const modal = document.getElementById('resource-modal');
     modal.classList.remove('active');
