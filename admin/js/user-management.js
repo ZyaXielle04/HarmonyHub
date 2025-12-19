@@ -283,6 +283,8 @@ document.addEventListener('DOMContentLoaded', function() {
             html: `
                 <div style="text-align:center;">
                     <img src="${imageUrl}" alt="${user.name}'s ID" style="max-width:400px; max-height:400px; border-radius:8px; margin-bottom:1rem; border:2px solid #6e8efb;">
+                    <p>Email: <strong>${user.email}</strong></p>
+                    <p>Date & Time Registered: <strong>${user.createdAt ? new Date(user.createdAt).toLocaleString() : 'Unknown'}</strong></p>
                     <p>Are you sure you want to verify this user?</p>
                 </div>
             `,
