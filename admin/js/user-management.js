@@ -103,18 +103,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
             snapshot.forEach(userSnapshot => {
                 const userData = userSnapshot.val();
-                if (userData.role !== 'admin') {
-                    users.push({
-                        id: userSnapshot.key,
-                        ...userData
-                    });
 
-                    if (userData.role === 'staff') staffCount++;
+                // ❌ Skip admins only
+                if (userData.role === 'admin') return;
+
+                users.push({
+                    id: userSnapshot.key,
+                    ...userData
+                });
+
+                if (userData.role === 'staff' && userData.isArchived !== true) {
+                    staffCount++;
                 }
             });
 
-            renderUsers(users);
-            updateStatistics(users, staffCount);
+            filterUsers(); // ✅ apply filters immediately
+            updateStatistics(
+                users.filter(u => !u.isArchived),
+                staffCount
+            );
+
             loadingIndicator.style.display = 'none';
         }, error => {
             console.error('Error loading users:', error);
@@ -150,12 +158,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const statusText = isVerified ? 'Verified' : 'Pending';
         const statusClass = isVerified ? 'status-verified' : 'status-pending';
 
+        const archivedBadge = user.isArchived
+            ? `<span class="status-badge status-archived">Archived</span>`
+            : '';
+
         card.innerHTML = `
             <div class="user-card-header">
                 <div class="user-avatar-large">${initials}</div>
                 <div class="user-card-info">
                     <h3>${user.name || 'Unknown'}</h3>
-                    <p>${user.role || 'No role'} • <span class="status-badge ${statusClass}">${statusText}</span></p>
+                    <p>
+                        ${user.role || 'No role'}
+                        • <span class="status-badge ${statusClass}">${statusText}</span>
+                        ${archivedBadge}
+                    </p>
                 </div>
             </div>
             <div class="user-card-details">
@@ -169,19 +185,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     <button class="user-action-btn btn-verify" data-userid="${user.id}" data-action="verify">
                         <i class="fas fa-check-circle"></i> Verify User
                     </button>` : ''}
+
                 ${user.role === 'member' && isVerified ? `
                     <button class="user-action-btn btn-promote" data-userid="${user.id}" data-action="promote">
                         <i class="fas fa-level-up-alt"></i> Promote User
+                    </button>
+                    <button class="user-action-btn btn-archive"
+                            data-userid="${user.id}"
+                            data-action="archive">
+                        <i class="fas fa-archive"></i> Archive User
                     </button>` : user.role === 'staff' && isVerified ? `
                     <button class="user-action-btn btn-permissions" data-userid="${user.id}" data-action="permissions">
                         <i class="fas fa-key"></i> Manage Permissions
                     </button>
+                    <button class="user-action-btn btn-archive"
+                            data-userid="${user.id}"
+                            data-action="archive">
+                        <i class="fas fa-archive"></i> Archive User
+                    </button>
                     <button class="user-action-btn btn-demote" data-userid="${user.id}" data-action="demote">
                         <i class="fas fa-level-down-alt"></i> Demote User
                     </button>` : ''}
-                <button class="user-action-btn btn-archive" data-userid="${user.id}" data-action="archive">
-                    <i class="fas fa-mailbox"></i> Archive User
-                </button>
             </div>
         `;
 
@@ -198,9 +222,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const userId = e.currentTarget.dataset.userid;
         const action = e.currentTarget.dataset.action;
         const user = users.find(u => u.id === userId);
-        
+
         if (!user) return;
-        
+
         switch(action) {
             case 'verify':
                 verifyUser(user);
@@ -214,12 +238,43 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'permissions':
                 showPermissions(user);
                 break;
-            case 'delete':
-                deleteUser(user);
+            case 'archive':
+                archiveUser(user);
                 break;
         }
     }
-    
+
+    function archiveUser(user) {
+        Swal.fire({
+            title: 'Archive User',
+            text: `Are you sure you want to archive ${user.name || user.email}?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ff9800',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, archive'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                database.ref(`users/${user.id}/isArchived`).set(true)
+                    .then(() => {
+                        showAlert(
+                            'success',
+                            'Archived',
+                            `${user.name || user.email} has been archived.`
+                        );
+                    })
+                    .catch(error => {
+                        console.error('Error archiving user:', error);
+                        showAlert(
+                            'error',
+                            'Error',
+                            'Failed to archive user. Please try again.'
+                        );
+                    });
+            }
+        });
+    }
+
     function verifyUser(user) {
         Swal.fire({
             title: 'Verify User',
@@ -235,7 +290,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 database.ref(`users/${user.id}/isVerified`).set(true)
                     .then(() => {
                         showAlert('success', 'Success!', 'User has been verified.');
-                        // No need to reload users - real-time listener will update automatically
                     })
                     .catch(error => {
                         console.error('Error verifying user:', error);
@@ -246,143 +300,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function promoteUser(user) {
-        // Show promotion modal with permission toggles
         showPromotionModal(user);
-    }
-    
-    function showPromotionModal(user) {
-        // Create modal HTML with permission switches
-        const modalHTML = `
-            <div class="modal promotion-modal" id="promotion-modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2>Promote ${user.name || user.email}</h2>
-                        <span class="close-modal">&times;</span>
-                    </div>
-                    <div class="modal-body">
-                        <p>Set permissions for this staff member:</p>
-                        
-                        <div class="permissions-list">
-                            <div class="permission-item">
-                                <label class="switch">
-                                    <input type="checkbox" id="canVerifyUsers" checked>
-                                    <span class="slider round"></span>
-                                </label>
-                                <span class="permission-label">Verify Users</span>
-                            </div>
-                            
-                            <div class="permission-item">
-                                <label class="switch">
-                                    <input type="checkbox" id="canPromoteUsers" checked>
-                                    <span class="slider round"></span>
-                                </label>
-                                <span class="permission-label">Promote Users</span>
-                            </div>
-                            
-                            <div class="permission-item">
-                                <label class="switch">
-                                    <input type="checkbox" id="canInitializeMeetings" checked>
-                                    <span class="slider round"></span>
-                                </label>
-                                <span class="permission-label">Initialize Meetings</span>
-                            </div>
-                            
-                            <div class="permission-item">
-                                <label class="switch">
-                                    <input type="checkbox" id="canAnnounce" checked>
-                                    <span class="slider round"></span>
-                                </label>
-                                <span class="permission-label">Make Announcements</span>
-                            </div>
-                            
-                            <div class="permission-item">
-                                <label class="switch">
-                                    <input type="checkbox" id="canUploadResources" checked>
-                                    <span class="slider round"></span>
-                                </label>
-                                <span class="permission-label">Upload Resources</span>
-                            </div>
-                            
-                            <div class="permission-item">
-                                <label class="switch">
-                                    <input type="checkbox" id="canAppointSchedules" checked>
-                                    <span class="slider round"></span>
-                                </label>
-                                <span class="permission-label">Appoint Schedules</span>
-                            </div>
-                        </div>
-                        
-                        <div class="modal-actions">
-                            <button class="btn-secondary" id="cancel-promotion">Cancel</button>
-                            <button class="btn-primary" id="confirm-promotion">Promote User</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // Add modal to the document
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
-        
-        // Get the modal element
-        const promotionModal = document.getElementById('promotion-modal');
-        
-        // Show the modal
-        promotionModal.style.display = 'block';
-        
-        // Set up event listeners
-        const closeModalBtn = promotionModal.querySelector('.close-modal');
-        const cancelBtn = promotionModal.querySelector('#cancel-promotion');
-        const confirmBtn = promotionModal.querySelector('#confirm-promotion');
-        
-        // Close modal function
-        const closeModal = () => {
-            promotionModal.style.display = 'none';
-            // Remove modal from DOM after animation completes
-            setTimeout(() => {
-                promotionModal.remove();
-            }, 300);
-        };
-        
-        // Event listeners
-        closeModalBtn.addEventListener('click', closeModal);
-        cancelBtn.addEventListener('click', closeModal);
-        
-        confirmBtn.addEventListener('click', () => {
-            // Get all selected permissions
-            const permissions = {
-                canVerifyUsers: document.getElementById('canVerifyUsers').checked,
-                canPromoteUsers: document.getElementById('canPromoteUsers').checked,
-                canInitializeMeetings: document.getElementById('canInitializeMeetings').checked,
-                canAnnounce: document.getElementById('canAnnounce').checked,
-                canUploadResources: document.getElementById('canUploadResources').checked,
-                canAppointSchedules: document.getElementById('canAppointSchedules').checked
-            };
-            
-            // Update user role and permissions in Firebase
-            const updates = {};
-            updates[`users/${user.id}/role`] = 'staff';
-            updates[`users/${user.id}/permissions`] = permissions;
-            
-            database.ref().update(updates)
-                .then(() => {
-                    showAlert('success', 'Success!', `${user.name || user.email} has been promoted to Staff.`);
-                    // No need to reload users - real-time listener will update automatically
-                    closeModal();
-                })
-                .catch(error => {
-                    console.error('Error promoting user:', error);
-                    showAlert('error', 'Error', 'Failed to promote user. Please try again.');
-                    closeModal();
-                });
-        });
-        
-        // Close modal when clicking outside
-        window.addEventListener('click', (e) => {
-            if (e.target === promotionModal) {
-                closeModal();
-            }
-        });
     }
     
     function demoteUser(user) {
@@ -410,7 +328,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 database.ref().update(updates)
                     .then(() => {
                         showAlert('success', 'Success!', 'User has been demoted to Member.');
-                        // No need to reload users - real-time listener will update automatically
                     })
                     .catch(error => {
                         console.error('Error demoting user:', error);
@@ -423,19 +340,16 @@ document.addEventListener('DOMContentLoaded', function() {
     function showPermissions(user) {
         currentEditingUser = user;
         
-        // Fetch permissions from Firebase
         database.ref(`users/${user.id}/permissions`).once('value')
             .then(snapshot => {
                 const permissions = snapshot.val() || {};
                 
-                // Create permissions content with toggle switches
                 let permissionsHTML = `
                     <h3>Permissions for ${user.name || user.email}</h3>
                     <p class="permissions-subtitle">Toggle permissions for this staff member:</p>
                     <div class="permissions-list">
                 `;
                 
-                // List all permissions with toggle switches
                 for (const [key, value] of Object.entries(permissions)) {
                     const formattedKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
                     const isChecked = value === true;
@@ -458,11 +372,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
                 
-                // Show modal
                 document.getElementById('permissions-content').innerHTML = permissionsHTML;
                 permissionsModal.style.display = 'block';
                 
-                // Add event listeners for save button
                 document.getElementById('save-permissions').addEventListener('click', savePermissions);
                 document.getElementById('cancel-permissions').addEventListener('click', () => {
                     permissionsModal.style.display = 'none';
@@ -477,7 +389,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function savePermissions() {
         if (!currentEditingUser) return;
         
-        // Get all permission toggles
         const permissionCheckboxes = document.querySelectorAll('#permissions-content input[type="checkbox"]');
         const updatedPermissions = {};
         
@@ -486,64 +397,15 @@ document.addEventListener('DOMContentLoaded', function() {
             updatedPermissions[permissionId] = checkbox.checked;
         });
         
-        // Update permissions in Firebase
         database.ref(`users/${currentEditingUser.id}/permissions`).set(updatedPermissions)
             .then(() => {
                 showAlert('success', 'Success!', 'Permissions updated successfully.');
                 permissionsModal.style.display = 'none';
-                // No need to reload users - real-time listener will update automatically
             })
             .catch(error => {
                 console.error('Error updating permissions:', error);
                 showAlert('error', 'Error', 'Failed to update permissions. Please try again.');
             });
-    }
-    
-    function deleteUser(user) {
-        Swal.fire({
-            title: 'Delete User',
-            text: `Are you sure you want to delete ${user.name || user.email}? This action cannot be undone.`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Yes, delete!'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                const admin = auth.currentUser;
-
-                if (!admin) {
-                    showAlert('error', 'Unauthorized', 'You must be logged in as admin to perform this action.');
-                    return;
-                }
-
-                const deletedUserId = user.id;
-
-                // Step 1: Remove the user
-                database.ref(`users/${deletedUserId}`).remove()
-                    .then(() => {
-                        // Step 2: Log the deletion in /activity_table
-                        const newActivityRef = database.ref('activity_table').push();
-                        const activityLog = {
-                            type: 'registration',
-                            action: 'delete_user',
-                            deletedBy: admin.uid,
-                            deletedUserId: deletedUserId,
-                            deletedUserEmail: user.email || null,
-                            timestamp: Date.now()
-                        };
-
-                        return newActivityRef.set(activityLog);
-                    })
-                    .then(() => {
-                        showAlert('success', 'Deleted!', `${user.name || user.email} was deleted and logged successfully.`);
-                    })
-                    .catch(error => {
-                        console.error('Error deleting user or logging activity:', error);
-                        showAlert('error', 'Error', 'Failed to delete user or log activity.');
-                    });
-            }
-        });
     }
     
     function filterUsers() {
@@ -552,17 +414,29 @@ document.addEventListener('DOMContentLoaded', function() {
         const statusFilterValue = statusFilter.value;
 
         const filteredUsers = users.filter(user => {
-            const matchesSearch = user.email.toLowerCase().includes(searchTerm) || 
-                                (user.name && user.name.toLowerCase().includes(searchTerm));
-            const matchesRole = roleFilterValue === 'all' || user.role === roleFilterValue;
+            const matchesSearch =
+                user.email.toLowerCase().includes(searchTerm) ||
+                (user.name && user.name.toLowerCase().includes(searchTerm));
+
+            const matchesRole =
+                roleFilterValue === 'all' || user.role === roleFilterValue;
+
             let matchesStatus = true;
+
             if (statusFilterValue === 'verified') {
-                matchesStatus = user.isVerified === true;
+                matchesStatus = user.isVerified === true && user.isArchived !== true;
             } else if (statusFilterValue === 'pending') {
-                matchesStatus = user.isVerified !== true;
+                matchesStatus = user.isVerified !== true && user.isArchived !== true;
+            } else if (statusFilterValue === 'archived') {
+                matchesStatus = user.isArchived === true;
+            } else {
+                // "all"
+                matchesStatus = true;
             }
+
             return matchesSearch && matchesRole && matchesStatus;
         });
+
         renderUsers(filteredUsers);
     }
     
@@ -577,7 +451,6 @@ document.addEventListener('DOMContentLoaded', function() {
         staffUsersEl.textContent = staffCount;
     }
     
-    // Clean up Firebase listeners when leaving the page
     window.addEventListener('beforeunload', () => {
         if (usersListener) usersRef.off('value', usersListener);
     });

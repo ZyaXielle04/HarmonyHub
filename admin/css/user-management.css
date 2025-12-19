@@ -791,3 +791,8 @@ input:checked + .slider:before {
         color: #a0aec0;
     }
 }
+
+.status-archived {
+    background: #9e9e9e;
+    color: #fff;
+}
