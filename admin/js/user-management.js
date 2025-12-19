@@ -276,9 +276,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function verifyUser(user) {
+        const imageUrl = user.governmentId?.frontImageUrl || 'placeholder-image.png';
+
         Swal.fire({
-            title: 'Verify User',
-            text: `Are you sure you want to verify ${user.name}?`,
+            title: `Verify ${user.name}`,
+            html: `
+                <div style="text-align:center;">
+                    <img src="${imageUrl}" alt="${user.name}'s ID" style="max-width:400px; max-height:400px; border-radius:8px; margin-bottom:1rem; border:2px solid #6e8efb;">
+                    <p>Are you sure you want to verify this user?</p>
+                </div>
+            `,
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#3085d6',
@@ -286,10 +293,13 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmButtonText: 'Yes, verify!'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Update user verification status in Firebase
-                database.ref(`users/${user.id}/isVerified`).set(true)
+                const updates = {};
+                updates[`users/${user.id}/isVerified`] = true;
+                updates[`users/${user.id}/governmentId`] = null; // Delete governmentId node
+
+                database.ref().update(updates)
                     .then(() => {
-                        showAlert('success', 'Success!', 'User has been verified.');
+                        showAlert('success', 'Success!', 'User has been verified and government ID deleted.');
                     })
                     .catch(error => {
                         console.error('Error verifying user:', error);
