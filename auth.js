@@ -1,107 +1,146 @@
 // Use auth and database from firebase-config.js via window
 
-// DOM Elements
+// ================== DOM ELEMENTS ==================
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
 
-// SweetAlert helper function
+// ================== SWEETALERT HELPER ==================
 function showAlert(icon, title, text, confirmButtonText = 'OK') {
     return Swal.fire({
-        icon: icon,
-        title: title,
-        text: text,
+        icon,
+        title,
+        text,
         background: '#2c3e50',
         color: '#fff',
-        iconColor: icon === 'error' ? '#f44336' : (icon === 'success' ? '#4caf50' : (icon === 'warning' ? '#ff9800' : '#2196f3')),
-        confirmButtonText: confirmButtonText,
+        iconColor:
+            icon === 'error'
+                ? '#f44336'
+                : icon === 'success'
+                ? '#4caf50'
+                : icon === 'warning'
+                ? '#ff9800'
+                : '#2196f3',
+        confirmButtonText,
         confirmButtonColor: '#6e8efb'
     });
 }
 
+// ================== CLOUDINARY UPLOAD ==================
+async function uploadToCloudinary(file) {
+    if (!window.cloudinaryConfig) {
+        throw new Error('Cloudinary config not found');
+    }
+
+    const { cloudName, uploadPreset } = window.cloudinaryConfig;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', uploadPreset);
+    formData.append('folder', 'government_ids');
+
+    const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+        { method: 'POST', body: formData }
+    );
+
+    if (!response.ok) {
+        throw new Error('Cloudinary upload failed');
+    }
+
+    const data = await response.json();
+    return {
+        url: data.secure_url,
+        publicId: data.public_id
+    };
+}
+
 // ================== REGISTER ==================
 if (registerForm) {
-    registerForm.addEventListener('submit', (e) => {
+    registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const name = document.getElementById('register-name').value.trim();
         const email = document.getElementById('register-email').value.trim();
         const password = document.getElementById('register-password').value;
         const confirmPassword = document.getElementById('confirm-password').value;
+        const idFile = document.getElementById('register-id-image')?.files[0];
 
-        if (!name) {
-            showAlert('error', 'Error', 'Name is required.');
+        if (!name || !email || password !== confirmPassword) {
+            showAlert('error', 'Error', 'Please complete all fields correctly.');
             return;
         }
 
-        if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
-            showAlert('error', 'Error', 'A valid email address is required.');
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            showAlert('error', 'Error', 'Passwords do not match.');
+        if (!idFile) {
+            showAlert('error', 'Missing ID', 'Government ID image is required.');
             return;
         }
 
         const registerBtn = document.getElementById('register-btn');
         registerBtn.classList.add('loading');
 
-        auth.createUserWithEmailAndPassword(email, password)
-            .then((userCredential) => {
-                const user = userCredential.user;
+        try {
+            // 🔐 Create Firebase Auth user
+            const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+            const user = userCredential.user;
 
-                const userPath = 'users/' + user.uid;
-                const userData = {
-                    name: name,
-                    email: email,
-                    role: 'member',           // Default role
-                    isVerified: false,        // Needs admin approval
-                    createdAt: new Date().toISOString(),
-                    permissions: {
-                        canAnnounce: false,
-                        canVerifyUsers: false,
-                        canAppointSchedules: false,
-                        canInitializeMeetings: false,
-                        canUploadResources: false,
-                        canPromoteUsers: false
-                    }
-                };
+            // 📧 Send Firebase email verification
+            await user.sendEmailVerification();
 
-                // Save user data in RTDB
-                return database.ref(userPath).set(userData)
-                    .then(() => {
-                        console.log("✅ User data saved to RTDB:", userData);
+            // ☁️ Upload ID to Cloudinary
+            const uploadResult = await uploadToCloudinary(idFile);
 
-                        // Store in session
-                        const fullUserData = { uid: user.uid, ...userData };
-                        sessionStorage.setItem('authUser', JSON.stringify(fullUserData));
+            const userData = {
+                name,
+                email,
+                role: 'member',
+                isVerified: false, // Admin approval
+                isArchived: false,
+                createdAt: new Date().toISOString(),
 
-                        // ALSO log into /activity_table
-                        const activityData = {
-                            type: 'registration',
-                            userId: user.uid,
-                            isVerified: userData.isVerified,
-                            name: userData.name,
-                            email: userData.email,
-                            role: userData.role,
-                            createdAt: userData.createdAt,
-                            solved: false,
-                            timestamp: Date.now() // ✅ Added for consistent sorting
-                        };
-                        return database.ref('activity_table').push(activityData);
-                    });
-            })
-            .then(() => {
-                showAlert('success', 'Success!', 'Account created! Please wait for admin approval.');
-                // 👉 stays on index.html
-            })
-            .catch((error) => {
-                console.error('Register error:', error);
-                showAlert('error', 'Registration Failed', error.message || 'Registration failed.');
-            })
-            .finally(() => {
-                registerBtn.classList.remove('loading');
+                governmentId: {
+                    frontImageUrl: uploadResult.url,
+                    publicId: uploadResult.publicId,
+                    verified: false
+                },
+
+                permissions: {
+                    canAnnounce: false,
+                    canVerifyUsers: false,
+                    canAppointSchedules: false,
+                    canInitializeMeetings: false,
+                    canUploadResources: false,
+                    canPromoteUsers: false
+                }
+            };
+
+            // 💾 Save to RTDB
+            await database.ref(`users/${user.uid}`).set(userData);
+
+            // 📝 Log activity
+            await database.ref('activity_table').push({
+                type: 'registration',
+                userId: user.uid,
+                name,
+                email,
+                role: 'member',
+                solved: false,
+                timestamp: Date.now()
             });
+
+            showAlert(
+                'success',
+                'Verify Your Email',
+                'Account created! Please verify your email, then wait for admin approval.'
+            );
+
+            auth.signOut(); // ⛔ Force logout until verified
+
+        } catch (error) {
+            console.error('Register error:', error);
+            showAlert('error', 'Registration Failed', error.message);
+        } finally {
+            registerBtn.classList.remove('loading');
+        }
     });
 }
 
@@ -117,31 +156,35 @@ if (loginForm) {
         const loginBtn = document.getElementById('login-btn');
         loginBtn.classList.add('loading');
 
-        const persistence = rememberMe ? 
-            firebase.auth.Auth.Persistence.LOCAL : 
-            firebase.auth.Auth.Persistence.SESSION;
+        const persistence = rememberMe
+            ? firebase.auth.Auth.Persistence.LOCAL
+            : firebase.auth.Auth.Persistence.SESSION;
 
         auth.setPersistence(persistence)
             .then(() => auth.signInWithEmailAndPassword(email, password))
-            .then((userCredential) => {
-                const user = userCredential.user;
-                return database.ref('users/' + user.uid).once('value').then((snapshot) => {
-                    const userData = snapshot.val();
-                    if (!userData) throw new Error("User data not found.");
+            .then(async (cred) => {
+                const user = cred.user;
+                const snapshot = await database.ref(`users/${user.uid}`).once('value');
+                const userData = snapshot.val();
+                if (!userData) throw new Error('User data not found.');
 
-                    const fullUserData = { uid: user.uid, ...userData };
-                    sessionStorage.setItem('authUser', JSON.stringify(fullUserData));
-                    return fullUserData;
-                });
-            })
-            .then((userData) => {
-                if (!userData.isApproved && userData.role !== 'admin') {
+                // 🚨 Pending check: not admin + (not verified OR email not verified)
+                if (!userData.isVerified && userData.role !== 'admin' || !user.emailVerified) {
+                    sessionStorage.setItem(
+                        'authUser',
+                        JSON.stringify({ uid: user.uid, ...userData })
+                    );
                     window.location.href = 'pending.html';
-                    return null;
+                    return;
                 }
 
-                showAlert('success', 'Welcome!', 'Login successful! Redirecting...');
+                // ✅ Normal successful login
+                sessionStorage.setItem(
+                    'authUser',
+                    JSON.stringify({ uid: user.uid, ...userData })
+                );
 
+                showAlert('success', 'Welcome!', 'Login successful! Redirecting...');
                 setTimeout(() => {
                     if (userData.role === 'admin') {
                         window.location.href = '../admin/dashboard.html';
@@ -154,18 +197,7 @@ if (loginForm) {
             })
             .catch((error) => {
                 console.error('Login error:', error);
-                let errorMessage = 'An error occurred during login.';
-                switch(error.code) {
-                    case 'auth/user-not-found':
-                        errorMessage = 'No account found with this email.'; break;
-                    case 'auth/wrong-password':
-                        errorMessage = 'Incorrect password.'; break;
-                    case 'auth/invalid-email':
-                        errorMessage = 'Invalid email address.'; break;
-                    case 'auth/too-many-requests':
-                        errorMessage = 'Too many failed attempts. Please try again later.'; break;
-                }
-                showAlert('error', 'Login Failed', errorMessage);
+                showAlert('error', 'Login Failed', error.message);
             })
             .finally(() => {
                 loginBtn.classList.remove('loading');
@@ -178,66 +210,19 @@ const forgotPassword = document.getElementById('forgot-password');
 if (forgotPassword) {
     forgotPassword.addEventListener('click', (e) => {
         e.preventDefault();
-        
+
         const email = document.getElementById('login-email').value.trim();
-        
         if (!email) {
-            showAlert('warning', 'Email Required', 'Please enter your email address first.');
+            showAlert('warning', 'Email Required', 'Enter your email first.');
             return;
         }
-        
+
         auth.sendPasswordResetEmail(email)
             .then(() => {
-                showAlert('success', 'Email Sent', 'Password reset email sent. Check your inbox.');
+                showAlert('success', 'Email Sent', 'Password reset email sent.');
             })
-            .catch((error) => {
-                console.error('Password reset error:', error);
-                showAlert('error', 'Error', 'Error sending reset email. Please try again.');
+            .catch(() => {
+                showAlert('error', 'Error', 'Failed to send reset email.');
             });
-    });
-}
-
-// ================== AUTH STATE LISTENER ==================
-if (typeof auth !== 'undefined') {
-    auth.onAuthStateChanged((user) => {
-        if (user) {
-            database.ref('users/' + user.uid).once('value')
-                .then((snapshot) => {
-                    const userData = snapshot.val();
-                    if (!userData) throw new Error("User data not found.");
-
-                    const fullUserData = { uid: user.uid, ...userData };
-                    sessionStorage.setItem('authUser', JSON.stringify(fullUserData));
-
-                    // ✅ Do not redirect if not approved — just show a message
-                    if (!userData.isApproved && userData.role !== 'admin') {
-                        showAlert('info', 'Pending Approval', 'Your account has been created. Please wait for admin approval.');
-                        return null;
-                    }
-
-                    return fullUserData;
-                })
-                .then((userData) => {
-                    if (!userData) return; // already showed pending message
-
-                    // Optional: auto-redirect only if they’re logged in AND approved
-                    if (window.location.pathname.includes('index.html')) {
-                        showAlert('success', 'Welcome!', 'Login successful! Redirecting...');
-                        setTimeout(() => {
-                            if (userData.role === 'admin') {
-                                window.location.href = '../admin/dashboard.html';
-                            } else if (userData.role === 'staff') {
-                                window.location.href = '../staff/dashboard.html';
-                            } else {
-                                window.location.href = '../member/dashboard.html';
-                            }
-                        }, 1500);
-                    }
-                })
-                .catch((error) => {
-                    console.error('Auth state error:', error);
-                    showAlert('error', 'Error', 'Error retrieving user data.');
-                });
-        }
     });
 }
