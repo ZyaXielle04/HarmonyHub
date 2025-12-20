@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin OTP Verification</title>
+
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- EmailJS -->
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+
+  <style>
+    /* Basic Reset */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    body {
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #6e8efb, #a777e3);
+    }
+
+    /* Card */
+    .otp-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 400px;
+      padding: 40px 30px;
+      text-align: center;
+      position: relative;
+    }
+
+    .otp-card h2 {
+      font-size: 24px;
+      margin-bottom: 12px;
+      color: #2c3e50;
+    }
+
+    .otp-card p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    /* OTP input */
+    #otp-input {
+      width: 100%;
+      padding: 12px;
+      font-size: 18px;
+      text-align: center;
+      border: 2px solid #6e8efb;
+      border-radius: 8px;
+      outline: none;
+      transition: border 0.3s;
+    }
+
+    #otp-input:focus {
+      border-color: #a777e3;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      margin-top: 20px;
+      transition: all 0.3s ease;
+    }
+
+    #verify-otp-btn {
+      background: #6e8efb;
+      color: #fff;
+      margin-right: 10px;
+    }
+
+    #verify-otp-btn:hover {
+      background: #5a75e0;
+    }
+
+    #resend-otp-btn {
+      background: #fff;
+      color: #6e8efb;
+      border: 2px solid #6e8efb;
+    }
+
+    #resend-otp-btn:hover {
+      background: #6e8efb;
+      color: #fff;
+    }
+
+    /* Timer */
+    #otp-timer {
+      margin-top: 15px;
+      font-size: 14px;
+      color: #888;
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      .otp-card {
+        padding: 30px 20px;
+      }
+
+      #otp-input {
+        font-size: 16px;
+        padding: 10px;
+      }
+
+      .btn {
+        font-size: 14px;
+        padding: 10px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="otp-card">
+    <h2>Admin OTP Verification</h2>
+    <p>We detected a login attempt to your admin account. Enter the verification code sent to your email.</p>
+
+    <input type="text" id="otp-input" placeholder="Enter 6-digit code" maxlength="6">
+    
+    <div>
+      <button id="verify-otp-btn" class="btn">Verify</button>
+      <button id="resend-otp-btn" class="btn">Resend OTP</button>
+    </div>
+
+    <p id="otp-timer">OTP expires in <span id="timer">05:00</span></p>
+  </div>
+
+  <script>
+    const verifyBtn = document.getElementById('verify-otp-btn');
+    const resendBtn = document.getElementById('resend-otp-btn');
+    const timerDisplay = document.getElementById('timer');
+
+    const authUser = JSON.parse(sessionStorage.getItem('authUser') || '{}');
+    if (!authUser || authUser.role !== 'admin') {
+      window.location.href = 'login.html';
+    }
+
+    function getStoredOTP() {
+      return JSON.parse(sessionStorage.getItem('adminOTP') || '{}');
+    }
+
+    function startOtpTimer() {
+      let stored = getStoredOTP();
+      if (!stored.otp) return;
+
+      const expiration = stored.timestamp + 5 * 60 * 1000;
+      const interval = setInterval(() => {
+        const diff = expiration - Date.now();
+        if (diff <= 0) {
+          clearInterval(interval);
+          timerDisplay.textContent = '00:00';
+          Swal.fire('Expired', 'OTP expired. Please login again.', 'warning').then(() => {
+            sessionStorage.removeItem('adminOTP');
+            window.location.href = 'login.html';
+          });
+          return;
+        }
+        const minutes = String(Math.floor(diff / 60000)).padStart(2, '0');
+        const seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+        timerDisplay.textContent = `${minutes}:${seconds}`;
+      }, 1000);
+    }
+
+    startOtpTimer();
+
+    verifyBtn.addEventListener('click', () => {
+      const inputOtp = document.getElementById('otp-input').value.trim();
+      const stored = getStoredOTP();
+
+      if (!stored.otp) {
+        Swal.fire('Error', 'No OTP found. Please login again.', 'error');
+        return;
+      }
+
+      if (Date.now() - stored.timestamp > 5 * 60 * 1000) {
+        Swal.fire('Expired', 'OTP expired. Please login again.', 'warning');
+        sessionStorage.removeItem('adminOTP');
+        window.location.href = 'login.html';
+        return;
+      }
+
+      if (inputOtp !== stored.otp) {
+        Swal.fire('Invalid', 'OTP does not match.', 'error');
+        return;
+      }
+
+      sessionStorage.removeItem('adminOTP');
+      Swal.fire('Success', 'OTP verified! Redirecting...', 'success').then(() => {
+        window.location.href = '../admin/dashboard.html';
+      });
+    });
+
+    resendBtn.addEventListener('click', async () => {
+      resendBtn.disabled = true;
+
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      sessionStorage.setItem(
+        'adminOTP',
+        JSON.stringify({ otp, timestamp: Date.now(), uid: authUser.uid })
+      );
+
+      try {
+        await emailjs.send(
+          'service_admin_otp',
+          'admin_login_otp',
+          { otp_code: otp, to_email: authUser.email }
+        );
+        Swal.fire('Sent', 'A new OTP has been sent to your email.', 'success');
+        startOtpTimer();
+      } catch (error) {
+        console.error('OTP resend failed:', error);
+        Swal.fire('Error', 'Failed to resend OTP. Try again.', 'error');
+      }
+
+      let cooldown = 30;
+      const cooldownInterval = setInterval(() => {
+        resendBtn.textContent = `Resend OTP (${cooldown}s)`;
+        cooldown--;
+        if (cooldown < 0) {
+          clearInterval(cooldownInterval);
+          resendBtn.textContent = 'Resend OTP';
+          resendBtn.disabled = false;
+        }
+      }, 1000);
+    });
+  </script>
+</body>
+</html>

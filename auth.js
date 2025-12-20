@@ -146,7 +146,7 @@ if (registerForm) {
 
 // ================== LOGIN ==================
 if (loginForm) {
-    loginForm.addEventListener('submit', (e) => {
+    loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const email = document.getElementById('login-email').value.trim();
@@ -156,52 +156,79 @@ if (loginForm) {
         const loginBtn = document.getElementById('login-btn');
         loginBtn.classList.add('loading');
 
-        const persistence = rememberMe
-            ? firebase.auth.Auth.Persistence.LOCAL
-            : firebase.auth.Auth.Persistence.SESSION;
+        try {
+            // Set Firebase persistence
+            const persistence = rememberMe
+                ? firebase.auth.Auth.Persistence.LOCAL
+                : firebase.auth.Auth.Persistence.SESSION;
 
-        auth.setPersistence(persistence)
-            .then(() => auth.signInWithEmailAndPassword(email, password))
-            .then(async (cred) => {
-                const user = cred.user;
-                const snapshot = await database.ref(`users/${user.uid}`).once('value');
-                const userData = snapshot.val();
-                if (!userData) throw new Error('User data not found.');
+            await auth.setPersistence(persistence);
 
-                // 🚨 Pending check: not admin + (not verified OR email not verified)
-                if (!userData.isVerified && userData.role !== 'admin' || !user.emailVerified) {
-                    sessionStorage.setItem(
-                        'authUser',
-                        JSON.stringify({ uid: user.uid, ...userData })
-                    );
-                    window.location.href = 'pending.html';
-                    return;
-                }
+            // Sign in user
+            const cred = await auth.signInWithEmailAndPassword(email, password);
+            const user = cred.user;
 
-                // ✅ Normal successful login
+            // Fetch user data
+            const snapshot = await database.ref(`users/${user.uid}`).once('value');
+            const userData = snapshot.val();
+            if (!userData) throw new Error('User data not found.');
+
+            // If NOT admin and not verified / email not verified → pending page
+            if (userData.role !== 'admin' && (!userData.isVerified || !user.emailVerified)) {
+                sessionStorage.setItem('authUser', JSON.stringify({ uid: user.uid, ...userData }));
+                window.location.href = 'pending.html';
+                return;
+            }
+
+            // Save user session
+            sessionStorage.setItem('authUser', JSON.stringify({ uid: user.uid, ...userData }));
+
+            // Show welcome alert
+            await Swal.fire('Welcome!', 'Logging in!', 'success');
+
+            // Admin OTP handling
+            if (userData.role === 'admin') {
+                const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+                // Store OTP in sessionStorage
                 sessionStorage.setItem(
-                    'authUser',
-                    JSON.stringify({ uid: user.uid, ...userData })
+                    'adminOTP',
+                    JSON.stringify({ otp, timestamp: Date.now(), uid: user.uid })
                 );
 
-                showAlert('success', 'Welcome!', 'Login successful! Redirecting...');
-                setTimeout(() => {
-                    if (userData.role === 'admin') {
-                        window.location.href = '../admin/dashboard.html';
-                    } else if (userData.role === 'staff') {
-                        window.location.href = '../staff/dashboard.html';
-                    } else {
-                        window.location.href = '../member/dashboard.html';
-                    }
-                }, 1500);
-            })
-            .catch((error) => {
-                console.error('Login error:', error);
-                showAlert('error', 'Login Failed', error.message);
-            })
-            .finally(() => {
-                loginBtn.classList.remove('loading');
-            });
+                try {
+                    // Send OTP via EmailJS
+                    await emailjs.send(
+                        'service_admin_otp',    // EmailJS service ID
+                        'admin_login_otp',      // EmailJS template ID
+                        {
+                            otp_code: otp      // Must match template variable {{otp_code}}
+                        }
+                    );
+
+                    // Redirect admin to OTP page
+                    window.location.href = 'admin-otp.html';
+                    return; // stop further execution
+                } catch (error) {
+                    console.error('OTP send failed:', error);
+                    showAlert('error', 'OTP Error', 'Failed to send OTP. Try again.');
+                    return;
+                }
+            }
+
+            // Staff / Member routing
+            if (userData.role === 'staff') {
+                window.location.href = '../staff/dashboard.html';
+            } else {
+                window.location.href = '../member/dashboard.html';
+            }
+
+        } catch (error) {
+            console.error('Login error:', error);
+            showAlert('error', 'Login Failed', error.message);
+        } finally {
+            loginBtn.classList.remove('loading');
+        }
     });
 }
 
