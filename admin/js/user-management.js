@@ -184,7 +184,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 ${!isVerified ? `
                     <button class="user-action-btn btn-verify" data-userid="${user.id}" data-action="verify">
                         <i class="fas fa-check-circle"></i> Verify User
-                    </button>` : ''}
+                    </button>
+
+                    ${user.role === 'member' ? `
+                        <button class="user-action-btn btn-delete"
+                                data-userid="${user.id}"
+                                data-action="delete">
+                            <i class="fas fa-trash-alt"></i> Delete User
+                        </button>
+                    ` : ''}
+                ` : ''}
 
                 ${user.role === 'member' && isVerified ? `
                     <button class="user-action-btn btn-promote" data-userid="${user.id}" data-action="promote">
@@ -241,7 +250,50 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'archive':
                 archiveUser(user);
                 break;
+            case 'delete':
+                deleteUser(user);
+                break;
         }
+    }
+
+    function deleteUser(user) {
+        Swal.fire({
+            title: 'Delete User',
+            html: `
+                <p>
+                    You are about to <strong>permanently delete</strong>
+                    <strong>${user.name || user.email}</strong>.
+                </p>
+                <p style="color:#f44336; margin-top:0.5rem;">
+                    This action cannot be undone.
+                </p>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#f44336',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete'
+        }).then(async (result) => {
+            if (!result.isConfirmed) return;
+
+            try {
+                await database.ref(`users/${user.id}`).remove();
+
+                showAlert(
+                    'success',
+                    'User Deleted',
+                    `${user.name || user.email} has been permanently removed.`
+                );
+
+            } catch (error) {
+                console.error('Delete user error:', error);
+                showAlert(
+                    'error',
+                    'Error',
+                    'Failed to delete user. Please try again.'
+                );
+            }
+        });
     }
 
     function archiveUser(user) {
