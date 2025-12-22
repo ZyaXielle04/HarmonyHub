@@ -128,33 +128,63 @@ document.addEventListener('DOMContentLoaded', function() {
             : 'UU';
 
         const isVerified = user.isVerified || false;
-        const statusText = isVerified ? 'Verified' : 'Pending';
-        const statusClass = isVerified ? 'status-verified' : 'status-pending';
+        const isArchived = user.isArchived || false;
+
+        const statusText = isArchived
+            ? 'Archived'
+            : isVerified
+                ? 'Verified'
+                : 'Pending';
+
+        const statusClass = isArchived
+            ? 'status-archived'
+            : isVerified
+                ? 'status-verified'
+                : 'status-pending';
 
         card.innerHTML = `
             <div class="user-card-header">
                 <div class="user-avatar-large">${initials}</div>
                 <div class="user-card-info">
                     <h3>${user.name || 'Unknown'}</h3>
-                    <p>${user.role || 'No role'} • <span class="status-badge ${statusClass}">${statusText}</span></p>
+                    <p>
+                        ${user.role || 'No role'} • 
+                        <span class="status-badge ${statusClass}">${statusText}</span>
+                    </p>
                 </div>
             </div>
+
             <div class="user-card-details">
                 <div class="user-detail-item">
                     <span class="user-detail-label">Joined:</span>
-                    <span class="user-detail-value">${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}</span>
+                    <span class="user-detail-value">
+                        ${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}
+                    </span>
                 </div>
             </div>
+
             <div class="user-card-actions">
-                ${canVerify && !isVerified ? `<button class="user-action-btn btn-verify" data-userid="${user.id}" data-action="verify">Verify User</button>` : ''}
-                ${canPromote && isVerified ? `<button class="user-action-btn btn-promote" data-userid="${user.id}" data-action="promote">Promote User</button>` : ''}
+                ${canVerify && !isVerified && !isArchived
+                    ? `<button class="user-action-btn btn-verify" data-userid="${user.id}" data-action="verify">Verify</button>`
+                    : ''}
+
+                ${canVerify && !isArchived
+                    ? `<button class="user-action-btn btn-archive" data-userid="${user.id}" data-action="archive">Archive</button>`
+                    : ''}
+
+                ${canPromote && isVerified && !isArchived
+                    ? `<button class="user-action-btn btn-promote" data-userid="${user.id}" data-action="promote">Promote User</button>`
+                    : ''}
+
+                ${canVerify
+                    ? `<button class="user-action-btn btn-delete" data-userid="${user.id}" data-action="delete">Delete</button>`
+                    : ''}
             </div>
         `;
 
         setTimeout(() => {
-            card.querySelectorAll('.user-action-btn').forEach(button => {
-                button.addEventListener('click', handleUserAction);
-            });
+            card.querySelectorAll('.user-action-btn')
+                .forEach(btn => btn.addEventListener('click', handleUserAction));
         }, 0);
 
         return card;
@@ -166,25 +196,94 @@ document.addEventListener('DOMContentLoaded', function() {
         const user = users.find(u => u.id === userId);
         if (!user) return;
 
-        switch(action) {
-            case 'verify': verifyUser(user); break;
-            case 'promote': showPromotionModal(user); break;
+        switch (action) {
+            case 'verify':
+                verifyUser(user);
+                break;
+            case 'archive':
+                archiveUser(user);
+                break;
+            case 'delete':
+                deleteUser(user);
+                break;
+            case 'promote':
+                showPromotionModal(user);
+                break;
         }
     }
 
     function verifyUser(user) {
+        const idImage =
+            user.governmentId?.frontImageUrl ||
+            user.governmentId?.url ||
+            '';
+
         Swal.fire({
-            title: 'Verify User',
-            text: `Are you sure you want to verify ${user.name}?`,
+            title: `Verify ${user.name || user.email}`,
+            html: `
+                ${idImage ? `
+                    <img src="${idImage}"
+                        style="max-width:100%; max-height:300px;
+                                border-radius:8px;
+                                margin-bottom:1rem;
+                                border:2px solid #6e8efb;" />
+                ` : '<p><em>No ID uploaded</em></p>'}
+
+                <p><strong>Email:</strong> ${user.email || 'N/A'}</p>
+                <p><strong>Joined:</strong>
+                    ${user.createdAt
+                        ? new Date(user.createdAt).toLocaleString()
+                        : 'Unknown'}
+                </p>
+
+                <p>Are you sure you want to verify this user?</p>
+            `,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Yes, verify!'
+            confirmButtonText: 'Yes, verify'
         }).then(result => {
-            if (result.isConfirmed) {
-                database.ref(`users/${user.id}/isVerified`).set(true)
-                    .then(() => showAlert('success','Success!','User verified.'))
-                    .catch(err => showAlert('error','Error','Failed to verify user.'));
-            }
+            if (!result.isConfirmed) return;
+
+            const updates = {};
+            updates[`users/${user.id}/isVerified`] = true;
+            updates[`users/${user.id}/governmentId`] = null;
+
+            database.ref().update(updates)
+                .then(() => showAlert('success', 'Verified', 'User has been verified.'))
+                .catch(() => showAlert('error', 'Error', 'Verification failed.'));
+        });
+    }
+
+    function archiveUser(user) {
+        Swal.fire({
+            title: 'Archive User',
+            text: `Archive ${user.name || user.email}?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, archive'
+        }).then(result => {
+            if (!result.isConfirmed) return;
+
+            database.ref(`users/${user.id}/isArchived`).set(true)
+                .then(() => showAlert('success', 'Archived', 'User archived successfully.'))
+                .catch(() => showAlert('error', 'Error', 'Failed to archive user.'));
+        });
+    }
+
+    function deleteUser(user) {
+        Swal.fire({
+            title: 'Delete User',
+            html: `<strong>This action is irreversible.</strong><br><br>
+                Delete ${user.name || user.email}?`,
+            icon: 'error',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, delete permanently'
+        }).then(result => {
+            if (!result.isConfirmed) return;
+
+            database.ref(`users/${user.id}`).remove()
+                .then(() => showAlert('success', 'Deleted', 'User has been deleted.'))
+                .catch(() => showAlert('error', 'Error', 'Failed to delete user.'));
         });
     }
 
