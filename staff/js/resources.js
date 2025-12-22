@@ -290,6 +290,140 @@ function loadResources() {
     });
 }
 
+// ===================== FULLSCREEN RESOURCE PREVIEW WITH IFRAME =====================
+function openFullscreenResource(resourceId) {
+    const resource = resources.find(r => r.id === resourceId);
+    if (!resource) return;
+
+    // Access restriction for staff
+    if (!window.currentUserCanModifyResources && window.currentUserRole === 'staff') {
+        if (resource.accessLevel === 'members' || resource.accessLevel === 'admin') {
+            Swal.fire('Access Denied', 'You do not have permission to view this resource.', 'error');
+            return;
+        }
+    }
+
+    // Create fullscreen container
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.top = 0;
+    container.style.left = 0;
+    container.style.width = '100vw';
+    container.style.height = '100vh';
+    container.style.background = '#000';
+    container.style.display = 'flex';
+    container.style.justifyContent = 'center';
+    container.style.alignItems = 'center';
+    container.style.zIndex = 9999;
+
+    // Exit button
+    const exitBtn = document.createElement('button');
+    exitBtn.textContent = '×';
+    exitBtn.style.position = 'absolute';
+    exitBtn.style.top = '20px';
+    exitBtn.style.right = '20px';
+    exitBtn.style.fontSize = '32px';
+    exitBtn.style.color = '#fff';
+    exitBtn.style.background = 'transparent';
+    exitBtn.style.border = 'none';
+    exitBtn.style.cursor = 'pointer';
+    exitBtn.style.zIndex = '10000';
+    exitBtn.addEventListener('click', () => {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        container.remove();
+    });
+    container.appendChild(exitBtn);
+
+    // Content
+    let content;
+    switch (resource.category) {
+        case 'images':
+            content = document.createElement('img');
+            content.src = resource.fileUrl;
+            content.alt = resource.name;
+            content.style.maxWidth = '100%';
+            content.style.maxHeight = '100%';
+            break;
+
+        case 'videos':
+            content = document.createElement('video');
+            content.src = resource.fileUrl;
+            content.controls = true;
+            content.autoplay = true;
+            content.style.maxWidth = '100%';
+            content.style.maxHeight = '100%';
+            break;
+
+        case 'audio':
+            content = document.createElement('audio');
+            content.src = resource.fileUrl;
+            content.controls = true;
+            content.autoplay = false;
+            content.style.width = '80%';
+            break;
+
+        case 'documents':
+            content = document.createElement('iframe');
+            const isPdf = resource.fileUrl.toLowerCase().endsWith('.pdf');
+            content.src = isPdf
+                ? resource.fileUrl
+                : `https://docs.google.com/gview?url=${encodeURIComponent(resource.fileUrl)}&embedded=true`;
+            content.style.width = '100%';
+            content.style.height = '100%';
+            content.style.border = 'none';
+            content.setAttribute('allowfullscreen', '');
+            content.setAttribute('allow', 'fullscreen');
+            break;
+
+        default:
+            content = document.createElement('div');
+            content.style.color = '#fff';
+            content.style.fontSize = '24px';
+            content.textContent = 'Cannot preview this resource type in fullscreen.';
+            break;
+    }
+
+    container.appendChild(content);
+    document.body.appendChild(container);
+
+    // Request fullscreen
+    if (container.requestFullscreen) container.requestFullscreen();
+    else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+
+    // Close on ESC/fullscreen exit
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) container.remove();
+    }, { once: true });
+
+    // Close on clicking outside content
+    container.addEventListener('click', (e) => {
+        if (e.target === container) {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            container.remove();
+        }
+    });
+}
+
+// ===================== ATTACH TO RESOURCE CARDS =====================
+function attachFullscreenListeners() {
+    document.querySelectorAll('.preview-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.getAttribute('data-id');
+            openFullscreenResource(id);
+        });
+    });
+}
+
+// Call this at the end of displayResources()
+displayResources = (function(orig) {
+    return function(resourcesToDisplay) {
+        orig(resourcesToDisplay);
+        attachFullscreenListeners();
+    }
+})(displayResources);
+
 // ===================== STATS =====================
 function updateResourceStats() {
     document.getElementById('total-resources').textContent = resources.length;
@@ -686,6 +820,16 @@ function previewResource(resourceId) {
         `;
     } else if (resource.category === 'links') {
         previewContent.innerHTML = `<p><a href="${resource.fileUrl}" target="_blank">${resource.fileUrl}</a></p>`;
+    } else if (resource.category === 'audio') {
+        previewContent.innerHTML = `
+            <audio controls style="width:100%;">
+                <source src="${resource.fileUrl}" type="audio/${resource.cloudinaryData?.format || 'mp3'}">
+                Your browser does not support the audio element.
+            </audio>
+            <div style="margin-top:20px;">
+                <a href="${resource.fileUrl}" download="${escapeHtml(resource.name)}" class="download-btn"><i class="fas fa-download"></i> Download Audio</a>
+            </div>
+        `;
     } else {
         previewContent.innerHTML = `<p>No preview available.</p>`;
     }

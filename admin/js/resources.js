@@ -180,6 +180,27 @@ function setupEventListeners() {
     addListenerSafe('category-filter', 'change', filterResources);
     addListenerSafe('access-filter', 'change', filterResources);
 
+    // Attach fullscreen to dynamically created buttons
+    function attachFullscreenButtons() {
+        document.querySelectorAll('.fullscreen-btn').forEach(btn => {
+            btn.removeEventListener('click', btn._fullscreenHandler); // remove old listener if any
+            const handler = (e) => {
+                const resourceId = e.currentTarget.getAttribute('data-id');
+                if (resourceId) openFullscreenResource(resourceId);
+            };
+            btn.addEventListener('click', handler);
+            btn._fullscreenHandler = handler; // store for future removal
+        });
+    }
+
+    // Call after rendering resources
+    displayResources = (function(originalDisplayResources) {
+        return function(resourcesToDisplay) {
+            originalDisplayResources(resourcesToDisplay);
+            attachFullscreenButtons();
+        };
+    })(displayResources);
+
     // Add resource button
     addListenerSafe('add-resource-btn', 'click', openAddResourceModal);
 
@@ -238,6 +259,154 @@ function setupEventListeners() {
         originalDisplayResources(resourcesToDisplay);
         attachResourceActionButtons();
     };
+}
+
+function openFullscreenResource(resourceId) {
+    const resource = resources.find(r => r.id === resourceId);
+    if (!resource) return;
+
+    // Access restriction for staff without modify permissions
+    if (!window.currentUserCanModifyResources && window.currentUserRole === 'staff') {
+        if (resource.accessLevel === 'members' || resource.accessLevel === 'admin') {
+            Swal.fire('Access Denied', 'You do not have permission to view this resource.', 'error');
+            return;
+        }
+    }
+
+    // Fallback for fileUrl if missing
+    let fileUrl = resource.fileUrl;
+    if (!fileUrl && resource.cloudinaryData) {
+        fileUrl = resource.cloudinaryData.secure_url;
+    }
+    if (!fileUrl && resource.category !== 'links') {
+        Swal.fire('Error', 'This resource has no file to display.', 'error');
+        return;
+    }
+
+    // Create fullscreen container
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.top = 0;
+    container.style.left = 0;
+    container.style.width = '100vw';
+    container.style.height = '100vh';
+    container.style.background = '#000';
+    container.style.display = 'flex';
+    container.style.justifyContent = 'center';
+    container.style.alignItems = 'center';
+    container.style.zIndex = 9999;
+
+    // Exit button
+    const exitBtn = document.createElement('button');
+    exitBtn.textContent = '×';
+    exitBtn.style.position = 'absolute';
+    exitBtn.style.top = '20px';
+    exitBtn.style.right = '20px';
+    exitBtn.style.fontSize = '32px';
+    exitBtn.style.color = '#fff';
+    exitBtn.style.background = 'transparent';
+    exitBtn.style.border = 'none';
+    exitBtn.style.cursor = 'pointer';
+    exitBtn.style.zIndex = '10000';
+    exitBtn.addEventListener('click', () => {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        container.remove();
+    });
+    container.appendChild(exitBtn);
+
+    // Content
+    let content;
+    switch (resource.category) {
+        case 'images':
+            content = document.createElement('img');
+            content.src = fileUrl;
+            content.alt = resource.name || '';
+            content.style.maxWidth = '100%';
+            content.style.maxHeight = '100%';
+            break;
+
+        case 'videos':
+            content = document.createElement('video');
+            content.src = fileUrl;
+            content.controls = true;
+            content.autoplay = true;
+            content.style.maxWidth = '100%';
+            content.style.maxHeight = '100%';
+            break;
+
+        case 'audio':
+            content = document.createElement('audio');
+            content.src = fileUrl;
+            content.controls = true;
+            content.autoplay = false;
+            content.style.width = '80%';
+            break;
+
+        case 'documents':
+            content = document.createElement('iframe');
+            const isPdf = fileUrl.toLowerCase().endsWith('.pdf');
+            content.src = isPdf
+                ? fileUrl
+                : `https://docs.google.com/gview?url=${encodeURIComponent(fileUrl)}&embedded=true`;
+            content.style.width = '100%';
+            content.style.height = '100%';
+            content.style.border = 'none';
+            content.setAttribute('allowfullscreen', '');
+            content.setAttribute('allow', 'fullscreen');
+            break;
+
+        case 'links':
+            content = document.createElement('div');
+            content.style.color = '#fff';
+            content.style.fontSize = '24px';
+            content.innerHTML = `<p><a href="${fileUrl}" target="_blank" style="color:#1E90FF;">${fileUrl}</a></p>`;
+            break;
+
+        default:
+            content = document.createElement('div');
+            content.style.color = '#fff';
+            content.style.fontSize = '24px';
+            content.textContent = 'Cannot preview this resource type in fullscreen.';
+            break;
+    }
+
+    container.appendChild(content);
+    document.body.appendChild(container);
+
+    // Request fullscreen
+    if (container.requestFullscreen) container.requestFullscreen();
+    else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+
+    // Close on ESC/fullscreen exit
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) container.remove();
+    }, { once: true });
+
+    // Close on clicking outside content
+    container.addEventListener('click', (e) => {
+        if (e.target === container) {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            container.remove();
+        }
+    });
+}
+
+// Attach event to buttons
+document.querySelectorAll('.fullscreen-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const resourceId = e.currentTarget.getAttribute('data-id');
+        openFullscreenResource(resourceId);
+    });
+});
+
+function isPdf(resource) {
+    return (
+        resource.category === 'documents' &&
+        resource.fileUrl &&
+        resource.fileUrl.toLowerCase().includes('.pdf')
+    );
 }
 
 
@@ -363,6 +532,11 @@ function displayResources(resourcesToDisplay) {
                         <i class="fas fa-eye"> </i>
                     </button>`
                 }
+                <button class="action-btn fullscreen-btn"
+                        data-id="${resource.id}"
+                        title="Fullscreen">
+                    <i class="fas fa-expand"></i>
+                </button>
                 <button class="action-btn edit-btn" data-id="${resource.id}" title="Edit">
                     <i class="fas fa-edit"></i>
                 </button>
@@ -689,65 +863,126 @@ function viewResource(resourceId) {
     window.open(resource.fileUrl, '_blank');
 }
 
-// Preview resource (for uploaded files)
+function getMimeType(fileUrl, type) {
+    const url = new URL(fileUrl, window.location.href);
+    const pathname = url.pathname;
+    const ext = pathname.split('.').pop().toLowerCase();
+
+    if (type === 'video') {
+        switch(ext) {
+            case 'mp4': return 'video/mp4';
+            case 'webm': return 'video/webm';
+            case 'ogg': return 'video/ogg';
+            default: return 'video/mp4';
+        }
+    } else if (type === 'audio') {
+        switch(ext) {
+            case 'mp3': return 'audio/mpeg';
+            case 'wav': return 'audio/wav';
+            case 'ogg': return 'audio/ogg';
+            default: return 'audio/mpeg';
+        }
+    }
+    return '';
+}
+
 function previewResource(resourceId) {
     const resource = resources.find(r => r.id === resourceId);
     if (!resource) return;
-    
+
     const previewModal = document.getElementById('preview-modal');
     const previewContent = document.getElementById('preview-content');
     const previewTitle = document.getElementById('preview-modal-title');
-    
-    previewTitle.textContent = resource.name;
-    
-    if (resource.category === 'images') {
-        previewContent.innerHTML = `
-            <img src="${resource.fileUrl}" alt="${resource.name}">
-            <div style="margin-top: 20px;">
-                <a href="${resource.fileUrl}" download="${resource.name}" class="download-btn">
-                    <i class="fas fa-download"></i> Download Image
-                </a>
-            </div>
-        `;
-    } else if (resource.category === 'videos') {
-        previewContent.innerHTML = `
-            <video controls style="max-width: 100%;">
-                <source src="${resource.fileUrl}" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
-            <div style="margin-top: 20px;">
-                <a href="${resource.fileUrl}" download="${resource.name}" class="download-btn">
-                    <i class="fas fa-download"></i> Download Video
-                </a>
-            </div>
-        `;
-    } else if (resource.category === 'documents') {
-        // For documents, show a download link
-        let fileExtension = 'file';
-        if (resource.cloudinaryData) {
-            fileExtension = resource.cloudinaryData.format;
-            if (!fileExtension && resource.cloudinaryData.original_filename) {
-                const parts = resource.cloudinaryData.original_filename.split('.');
-                if (parts.length > 1) {
-                    fileExtension = parts.pop();
-                }
-            }
-        }
-        
-        const iconClass = getFileIconClass(fileExtension);
-        previewContent.innerHTML = `
-            <div class="file-preview-icon">
-                <i class="fas ${iconClass}" style="font-size: 64px;"></i>
-            </div>
-            <p>This document cannot be previewed in the browser.</p>
-            <div style="margin-top: 20px;">
-                <a href="${resource.fileUrl}" download="${resource.name}" class="download-btn">
-                    <i class="fas fa-download"></i> Download Document
-                </a>
-            </div>
-        `;
+
+    previewTitle.textContent = resource.name || 'Resource Preview';
+    previewContent.innerHTML = ''; // reset content
+
+    // Determine actual file URL (cloudinary fallback)
+    let fileUrl = resource.fileUrl;
+    if ((!fileUrl || fileUrl === '') && resource.cloudinaryData?.secure_url) {
+        fileUrl = resource.cloudinaryData.secure_url;
     }
-    
+
+    if (!fileUrl && resource.category !== 'links') {
+        previewContent.innerHTML = '<p>No file available for preview.</p>';
+        previewModal.style.display = 'flex';
+        return;
+    }
+
+    switch (resource.category) {
+        case 'images':
+            previewContent.innerHTML = `
+                <img src="${fileUrl}" alt="${resource.name}" style="max-width:100%; max-height:80vh;">
+                <div style="margin-top:20px;">
+                    <a href="${fileUrl}" download="${resource.name}" class="download-btn">
+                        <i class="fas fa-download"></i> Download Image
+                    </a>
+                </div>
+            `;
+            break;
+
+        case 'videos':
+        case 'audio':
+            const isVideo = resource.category === 'videos';
+            const media = document.createElement(isVideo ? 'video' : 'audio');
+            media.controls = true;
+            media.style.maxWidth = '100%';
+            media.style.maxHeight = '80vh';
+            media.src = fileUrl;
+            if (isVideo) media.autoplay = false;
+
+            previewContent.appendChild(media);
+
+            // Download link
+            const downloadDiv = document.createElement('div');
+            downloadDiv.style.marginTop = '20px';
+            downloadDiv.innerHTML = `
+                <a href="${fileUrl}" download="${resource.name}" class="download-btn">
+                    <i class="fas fa-download"></i> Download ${isVideo ? 'Video' : 'Audio'}
+                </a>
+            `;
+            previewContent.appendChild(downloadDiv);
+            break;
+
+        case 'documents':
+            const isPdf = fileUrl.toLowerCase().endsWith('.pdf');
+            if (isPdf) {
+                previewContent.innerHTML = `
+                    <iframe src="${fileUrl}" style="width:100%; height:80vh; border:none;"></iframe>
+                    <div style="margin-top:15px; text-align:right;">
+                        <a href="${fileUrl}" download class="download-btn">
+                            <i class="fas fa-download"></i> Download PDF
+                        </a>
+                    </div>
+                `;
+            } else {
+                const iconClass = getFileIconClass(resource.cloudinaryData?.format || 'file');
+                previewContent.innerHTML = `
+                    <div class="file-preview-icon">
+                        <i class="fas ${iconClass}" style="font-size:64px;"></i>
+                    </div>
+                    <p>This document cannot be previewed in the browser.</p>
+                    <a href="${fileUrl}" download class="download-btn">
+                        <i class="fas fa-download"></i> Download Document
+                    </a>
+                `;
+            }
+            break;
+
+        case 'links':
+            previewContent.innerHTML = `<p><a href="${fileUrl}" target="_blank">${fileUrl}</a></p>`;
+            break;
+
+        default:
+            previewContent.innerHTML = `
+                <p>Preview not available for this resource type.</p>
+                <a href="${fileUrl}" download class="download-btn">
+                    <i class="fas fa-download"></i> Download File
+                </a>
+            `;
+            break;
+    }
+
     previewModal.style.display = 'flex';
 }
 
