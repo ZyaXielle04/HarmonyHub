@@ -6,6 +6,7 @@
   <title>Harmony Hub - Admin || AI Assistant</title>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="/admin/css/assist.css">
+  <link rel="stylesheet" href="css/pitch-check.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="icon" type="image/x-icon" href="../logo.jpg">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
@@ -14,8 +15,10 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-
   <script src="https://upload-widget.cloudinary.com/global/all.js"></script>
+  <!-- TensorFlow.js and Magenta.js for pitch detection -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@magenta/music@1.28.1/dist/magenta.min.js"></script>
 </head>
 <body>
 
@@ -30,13 +33,13 @@
       </div>
       <nav class="nav-menu">
         <ul>
-            <li><a href="dashboard.html" class="nav-link"><span>📊</span> Dashboard</a></li>
-            <li><a href="resources.html" class="nav-link"><span>📁</span> Resources</a></li>
-            <li><a href="announcements.html" class="nav-link"><span>📢</span> Announcements</a></li>
-            <li><a href="schedules.html" class="nav-link"><span>📅</span> Schedules</a></li>
-            <li><a href="meetings.html" class="nav-link"><span>🎬</span> Online Meetings</a></li>
-            <li><a href="assist.html" class="nav-link"><span>🤖</span> AI Assistant</a></li>
-            <li><a href="messages.html" class="nav-link active"><span>💬</span> Messages</a></li>
+          <li><a href="dashboard.html" class="nav-link"><span>📊</span> Dashboard</a></li>
+          <li><a href="resources.html" class="nav-link"><span>📁</span> Resources</a></li>
+          <li><a href="announcements.html" class="nav-link"><span>📢</span> Announcements</a></li>
+          <li><a href="schedules.html" class="nav-link"><span>📅</span> Schedules</a></li>
+          <li><a href="meetings.html" class="nav-link"><span>🎬</span> Online Meetings</a></li>
+          <li><a href="assist.html" class="nav-link active"><span>🤖</span> AI Assistant</a></li>
+          <li><a href="messages.html" class="nav-link"><span>💬</span> Messages</a></li>
         </ul>
       </nav>
       <div class="user-section">
@@ -70,6 +73,71 @@
             <button id="send-btn">Send</button>
           </div>
         </div>
+
+        <!-- Vocal Pitch Checker Panel -->
+        <div class="pitch-check-panel" id="pitch-check-panel">
+          <h3>Vocal Pitch Checker</h3>
+
+          <!-- Pitch Controls -->
+          <div class="pitch-controls">
+            <select id="target-note">
+              <option value="C3">C3</option>
+              <option value="D3">D3</option>
+              <option value="E3">E3</option>
+              <option value="F3">F3</option>
+              <option value="G3">G3</option>
+              <option value="A3">A3</option>
+              <option value="B3">B3</option>
+              <option value="C4">C4</option>
+              <option value="D4">D4</option>
+              <option value="E4">E4</option>
+              <option value="F4">F4</option>
+              <option value="G4">G4</option>
+              <option value="A4" selected>A4</option>
+              <option value="B4">B4</option>
+              <option value="C5">C5</option>
+            </select>
+            <button id="start-pitch" class="btn-primary">Start</button>
+            <button id="stop-pitch" class="btn-secondary" disabled>Stop</button>
+            <label><input type="checkbox" id="force-fallback"> Force fallback</label>
+          </div>
+
+          <!-- Tolerance Slider -->
+          <div class="tolerance-controls">
+            <label for="tolerance-slider">Tolerance (cents):</label>
+            <input id="tolerance-slider" type="range" min="5" max="200" step="1" value="20">
+            <span id="tolerance-value">20</span>
+          </div>
+
+          <!-- Guide Controls -->
+          <div class="guide-controls">
+            <button id="play-guide" class="btn-primary">Play Guide</button>
+            <button id="stop-guide" class="btn-secondary" disabled>Stop Guide</button>
+            <label for="guide-volume">Guide Vol</label>
+            <input id="guide-volume" type="range" min="0" max="1" step="0.01" value="0.6">
+            <label for="guide-mode">Guide Mode:</label>
+            <select id="guide-mode">
+              <option value="sine">Sine (continuous)</option>
+              <option value="arpeggio">Arpeggio (synth)</option>
+              <option value="sample">Use uploaded sample (mp3)</option>
+            </select>
+            <input id="guide-sample-file" type="file" accept="audio/*">
+            <span id="guide-countdown"></span>
+          </div>
+
+          <!-- Pitch Display -->
+          <div class="pitch-display">
+            <div class="pitch-info">
+              <div id="detected-note">--</div>
+              <div id="detected-freq">Freq: -- Hz</div>
+            </div>
+            <div class="pitch-meter-container">
+              <div id="pitch-meter"></div>
+              <div id="pitch-cents">±0 c</div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </main>
   </div>
@@ -95,5 +163,6 @@
   <script src="../notification.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="../admin/js/assist.js"></script>
+  <script src="/member/js/pitch-check.js"></script>
 </body>
 </html>

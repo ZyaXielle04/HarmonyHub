@@ -1,0 +1,307 @@
+/* ===== Vocal Pitch Checker Panel ===== */
+.pitch-check-panel {
+  margin-top: 28px;
+  padding: 36px 40px;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.08);
+  font-family: 'Poppins', sans-serif;
+  transition: all 0.3s ease;
+}
+
+/* Panel Heading */
+.pitch-check-panel h3 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 30px;
+  letter-spacing: 0.5px;
+}
+
+/* ===== Pitch Controls ===== */
+.pitch-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.pitch-controls select {
+  padding: 12px 16px;
+  font-size: 1rem;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.pitch-controls select:hover,
+.pitch-controls select:focus {
+  border-color: #4f46e5;
+  background: #f3f4f6;
+  outline: none;
+}
+
+.pitch-controls button {
+  padding: 12px 26px;
+  font-size: 1rem;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-weight: 600;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+
+.pitch-controls button.btn-primary {
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #ffffff;
+}
+
+.pitch-controls button.btn-primary:hover {
+  background: linear-gradient(135deg, #4338ca, #4f46e5);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.16);
+}
+
+.pitch-controls button.btn-secondary {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.pitch-controls button.btn-secondary:hover {
+  background: #d1d5db;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+
+.pitch-controls label {
+  font-size: 0.95rem;
+  color: #4b5563;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ===== Tolerance Slider ===== */
+.tolerance-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+#tolerance-slider {
+  width: 220px;
+  cursor: pointer;
+  appearance: none;
+  height: 12px;
+  border-radius: 6px;
+  background: #e5e7eb;
+  transition: background 0.3s ease;
+}
+
+#tolerance-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #4f46e5;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  transition: all 0.25s ease;
+}
+
+#tolerance-slider::-webkit-slider-thumb:hover {
+  background: #4338ca;
+}
+
+#tolerance-value {
+  font-weight: 600;
+  color: #111827;
+  min-width: 32px;
+  text-align: center;
+}
+
+/* ===== Guide Controls ===== */
+.guide-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.guide-controls button {
+  padding: 12px 26px;
+  font-size: 1rem;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  transition: all 0.25s ease;
+}
+
+.guide-controls button.btn-primary {
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #fff;
+}
+
+.guide-controls button.btn-primary:hover {
+  background: linear-gradient(135deg, #4338ca, #4f46e5);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.16);
+}
+
+.guide-controls button.btn-secondary {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.guide-controls button.btn-secondary:hover {
+  background: #d1d5db;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+
+.guide-controls input[type="range"] {
+  width: 140px;
+  cursor: pointer;
+  appearance: none;
+  height: 12px;
+  border-radius: 6px;
+  background: #e5e7eb;
+  transition: background 0.25s ease;
+}
+
+.guide-controls input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #4f46e5;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.25);
+  transition: all 0.25s ease;
+}
+
+.guide-controls select,
+.guide-controls input[type="file"] {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.guide-controls select:hover,
+.guide-controls input[type="file"]:hover,
+.guide-controls select:focus,
+.guide-controls input[type="file"]:focus {
+  border-color: #4f46e5;
+  background: #f3f4f6;
+  outline: none;
+}
+
+/* ===== Pitch Display ===== */
+.pitch-display {
+  margin-top: 24px;
+  display: flex;
+  gap: 22px;
+  align-items: center;
+}
+
+.pitch-info {
+  flex: 1;
+}
+
+#detected-note {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+#detected-freq {
+  color: #6b7280;
+  font-size: 1rem;
+  margin-top: 2px;
+}
+
+/* ===== Pitch Meter ===== */
+.pitch-meter-container {
+  width: 260px;
+}
+
+#pitch-meter {
+  height: 18px;
+  width: 0%;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #c7d2fe, #4f46e5);
+  box-shadow: inset 0 3px 8px rgba(0,0,0,0.12);
+  transition: width 0.15s ease, background 0.25s ease;
+}
+
+#pitch-cents {
+  text-align: center;
+  margin-top: 6px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* ===== Dynamic Pitch Meter Colors ===== */
+.on-pitch {
+  background: #6ee7b7 !important;
+  color: #1f7a3a;
+}
+
+.near-pitch {
+  background: #facc15 !important;
+  color: #806000;
+}
+
+.off-pitch {
+  background: #ff6b6b !important;
+  color: #7a1f1f;
+}
+
+/* ===== Countdown ===== */
+#guide-countdown {
+  font-weight: 700;
+  color: #1f2937;
+  min-width: 36px;
+  text-align: center;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+  .pitch-check-panel {
+    padding: 24px 28px;
+  }
+
+  .pitch-controls,
+  .guide-controls,
+  .tolerance-controls,
+  .pitch-display {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #pitch-meter {
+    width: 100% !important;
+  }
+
+  .pitch-controls select,
+  .pitch-controls button,
+  .guide-controls select,
+  .guide-controls input[type="range"],
+  .guide-controls input[type="file"],
+  .pitch-controls input[type="range"] {
+    font-size: 1rem;
+    padding: 14px;
+  }
+}
