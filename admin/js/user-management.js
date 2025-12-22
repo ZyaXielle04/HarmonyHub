@@ -314,6 +314,93 @@ document.addEventListener('DOMContentLoaded', function() {
     function promoteUser(user) {
         showPromotionModal(user);
     }
+
+    function showPromotionModal(user) {
+        const permissionSchema = {
+            canAnnounce: false,
+            canUploadResources: false,
+            canInitializeMeetings: false,
+            canAppointSchedules: false,
+            canPromoteUsers: false,
+            canVerifyUsers: false
+        };
+
+        let permissionsHTML = `
+            <div style="text-align:left;">
+                <p>
+                    Promote <strong>${user.name || user.email}</strong> to
+                    <strong>Staff</strong>
+                </p>
+
+                <p style="margin:0.5rem 0 1rem;">
+                    Select permissions to grant:
+                </p>
+
+                <div class="permissions-list">
+        `;
+
+        Object.keys(permissionSchema).forEach(key => {
+            const label = key
+                .replace(/([A-Z])/g, ' $1')
+                .replace(/^./, c => c.toUpperCase());
+
+            permissionsHTML += `
+                <div class="permission-item">
+                    <label class="switch">
+                        <input type="checkbox" id="promo-${key}">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="permission-label">${label}</span>
+                </div>
+            `;
+        });
+
+        permissionsHTML += `</div></div>`;
+
+        Swal.fire({
+            title: 'Promote User',
+            html: permissionsHTML,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Promote',
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            focusConfirm: false,
+            preConfirm: () => {
+                const selectedPermissions = {};
+
+                Object.keys(permissionSchema).forEach(key => {
+                    const checkbox = document.getElementById(`promo-${key}`);
+                    selectedPermissions[key] = checkbox?.checked || false;
+                });
+
+                return selectedPermissions;
+            }
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+
+            const updates = {};
+            updates[`users/${user.id}/role`] = 'staff';
+            updates[`users/${user.id}/permissions`] = result.value;
+
+            database.ref().update(updates)
+                .then(() => {
+                    showAlert(
+                        'success',
+                        'User Promoted',
+                        `${user.name || user.email} is now a staff member.`
+                    );
+                })
+                .catch(error => {
+                    console.error('Promotion error:', error);
+                    showAlert(
+                        'error',
+                        'Error',
+                        'Failed to promote user.'
+                    );
+                });
+        });
+    }
     
     function demoteUser(user) {
         Swal.fire({

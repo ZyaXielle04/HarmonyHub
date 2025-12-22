@@ -173,15 +173,40 @@ if (loginForm) {
             const userData = snapshot.val();
             if (!userData) throw new Error('User data not found.');
 
+            // ================= ARCHIVED USER CHECK =================
+            if (userData.role !== 'admin' && userData.isArchived === true) {
+
+                sessionStorage.setItem(
+                    'authUser',
+                    JSON.stringify({ uid: user.uid, ...userData })
+                );
+
+                await Swal.fire(
+                    'Account Restored',
+                    'Your account has been reactivated successfully.',
+                    'success'
+                );
+
+                await clearArchiveAndRedirect(user.uid, userData.role);
+                return;
+            }
+            // ======================================================
+
             // If NOT admin and not verified / email not verified → pending page
             if (userData.role !== 'admin' && (!userData.isVerified || !user.emailVerified)) {
-                sessionStorage.setItem('authUser', JSON.stringify({ uid: user.uid, ...userData }));
+                sessionStorage.setItem(
+                    'authUser',
+                    JSON.stringify({ uid: user.uid, ...userData })
+                );
                 window.location.href = 'pending.html';
                 return;
             }
 
             // Save user session
-            sessionStorage.setItem('authUser', JSON.stringify({ uid: user.uid, ...userData }));
+            sessionStorage.setItem(
+                'authUser',
+                JSON.stringify({ uid: user.uid, ...userData })
+            );
 
             // Show welcome alert
             await Swal.fire('Welcome!', 'Logging in!', 'success');
@@ -190,25 +215,20 @@ if (loginForm) {
             if (userData.role === 'admin') {
                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-                // Store OTP in sessionStorage
                 sessionStorage.setItem(
                     'adminOTP',
                     JSON.stringify({ otp, timestamp: Date.now(), uid: user.uid })
                 );
 
                 try {
-                    // Send OTP via EmailJS
                     await emailjs.send(
-                        'service_admin_otp',    // EmailJS service ID
-                        'admin_login_otp',      // EmailJS template ID
-                        {
-                            otp_code: otp      // Must match template variable {{otp_code}}
-                        }
+                        'service_admin_otp',
+                        'admin_login_otp',
+                        { otp_code: otp }
                     );
 
-                    // Redirect admin to OTP page
                     window.location.href = 'admin-otp.html';
-                    return; // stop further execution
+                    return;
                 } catch (error) {
                     console.error('OTP send failed:', error);
                     showAlert('error', 'OTP Error', 'Failed to send OTP. Try again.');
@@ -230,6 +250,16 @@ if (loginForm) {
             loginBtn.classList.remove('loading');
         }
     });
+}
+
+async function clearArchiveAndRedirect(uid, role) {
+    await database.ref(`users/${uid}/isArchived`).remove();
+
+    if (role === 'staff') {
+        window.location.href = '../staff/dashboard.html';
+    } else {
+        window.location.href = '../member/dashboard.html';
+    }
 }
 
 // ================== PASSWORD RESET ==================
