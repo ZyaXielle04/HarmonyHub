@@ -8,6 +8,13 @@ const strengthLevel = document.querySelector('.strength-level');
 const strengthText = document.querySelector('.strength-text');
 const toastContainer = document.getElementById('toast-container');
 
+// Terms & Conditions elements
+const termsModal = document.getElementById('terms-modal');
+const showTermsLink = document.getElementById('show-terms');
+const closeTermsBtn = termsModal?.querySelector('.close-modal');
+const agreeTermsBtn = document.getElementById('agree-terms-btn');
+const termsCheckbox = document.getElementById('terms-checkbox');
+
 // Toggle between login and register forms
 showRegisterLink.addEventListener('click', (e) => {
     e.preventDefault();
@@ -27,9 +34,9 @@ showLoginLink.addEventListener('click', (e) => {
 registerPasswordInput.addEventListener('input', () => {
     const password = registerPasswordInput.value;
     const strength = checkPasswordStrength(password);
-    
+
     strengthLevel.style.width = `${strength.score * 25}%`;
-    
+
     if (password.length === 0) {
         strengthText.textContent = 'Password strength';
         strengthLevel.style.backgroundColor = '#f0f0f0';
@@ -98,3 +105,43 @@ document.getElementById('register-show-confirm-password').addEventListener('chan
     const pwd = document.getElementById('confirm-password');
     pwd.type = this.checked ? 'text' : 'password';
 });
+
+// --------------------- TERMS & CONDITIONS LOGIC ---------------------
+if (showTermsLink && termsModal && agreeTermsBtn && termsCheckbox) {
+    const termsContent = termsModal.querySelector('.terms-content');
+
+    // Open modal
+    showTermsLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        termsModal.style.display = 'block';
+
+        // No need to disable the button anymore
+        agreeTermsBtn.disabled = false;
+    });
+
+    // Close modal
+    closeTermsBtn.addEventListener('click', () => termsModal.style.display = 'none');
+    window.addEventListener('click', e => {
+        if (e.target === termsModal) termsModal.style.display = 'none';
+    });
+
+    // Click "I Agree" button
+    agreeTermsBtn.addEventListener('click', function() {
+        termsCheckbox.checked = true;
+        termsCheckbox.disabled = false; // keep enabled so user can uncheck if needed
+        termsModal.style.display = 'none';
+    });
+
+    // Prevent register if terms not agreed (optional, still respects checkbox)
+    const registerForm = document.getElementById('register-form');
+    registerForm.addEventListener('submit', function(e) {
+        if (!termsCheckbox.checked) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'warning',
+                title: 'Terms and Conditions',
+                text: 'You must agree to the Terms and Conditions to register.'
+            });
+        }
+    });
+}

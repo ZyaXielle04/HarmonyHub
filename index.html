@@ -176,6 +176,53 @@
                             See Password
                         </label>
                     </div>
+
+                    <!-- Terms and Conditions -->
+                    <div class="form-group terms-container">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="terms-checkbox" disabled>
+                            <span class="checkmark"></span>
+                            I agree to the <a href="#" id="show-terms">Terms and Conditions</a>
+                        </label>
+                    </div>
+
+                    <!-- Terms and Conditions Modal -->
+                    <div id="terms-modal" class="modal">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h3>Terms and Conditions</h3>
+                                <span class="close-modal">&times;</span>
+                            </div>
+                            <div class="modal-body">
+                                <div class="terms-content">
+                                    <p><strong>By registering an account:</strong> You agree to provide accurate and truthful information for account creation and verification. This system is a closed and internal platform intended exclusively for authorized members of the church.</p>
+
+                                    <h4>Account Registration and Verification</h4>
+                                    <p>Users are required to submit basic personal details such as name, email, and choir-related information. All new accounts are set to Pending status and are subject to admin review before verification.</p>
+
+                                    <h4>Use of ID for Verification</h4>
+                                    <p>In specific cases where verification cannot be confirmed through details alone, the admin may request a valid ID strictly for identity confirmation. Submission of an ID is not mandatory by default and is requested only when necessary.</p>
+                                    <ul>
+                                        <li>Used only for verification purposes</li>
+                                        <li>Viewable only once by an authorized administrator</li>
+                                        <li>No longer accessible after verification</li>
+                                        <li>Users may mask sensitive info such as ID numbers and addresses, as long as name and photo are visible</li>
+                                    </ul>
+
+                                    <h4>Data Privacy and Access Control</h4>
+                                    <p>Access to verification data, including IDs, is limited to authorized administrators. User information will not be shared or used outside this system. Data collection is minimized to what is necessary for verification.</p>
+
+                                    <h4>Admin Rights</h4>
+                                    <p>The system reserves the right to approve, reject, or revoke accounts that contain false, incomplete, or misleading information, or that do not meet verification requirements.</p>
+
+                                    <p>By proceeding with registration, you confirm that you have read, understood, and agreed to these Terms and Conditions, including the data privacy practices stated above.</p>
+                                    <div class="modal-footer">
+                                        <button id="agree-terms-btn" class="btn btn-primary" disabled>I Agree</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                     <button type="submit" class="btn btn-primary" id="register-btn">
                         <span class="btn-text">Create Account</span>
