@@ -557,7 +557,7 @@ function updateResourceCounts() {
 
         if (cat === 'documents') {
             counts.documents++;
-        } else if (cat === 'images' || cat === 'videos') {
+        } else if (['images', 'videos', 'audio'].includes(cat)) {
             counts.media++;
         } else if (cat === 'links') {
             counts.other++;

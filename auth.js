@@ -127,7 +127,24 @@ if (registerForm) {
                 timestamp: Date.now()
             });
 
-            showAlert(
+            // 📧 Notify Admin (NON-BLOCKING)
+            try {
+                await emailjs.send(
+                    'service_new_user_notif',      // Service ID
+                    'admin_new_user_notif',        // Template ID
+                    {
+                        full_name: name,
+                        email: email,
+                        role: 'member',
+                        date_registered: new Date().toLocaleString()
+                    }
+                );
+            } catch (emailError) {
+                console.warn('Admin notification email failed:', emailError);
+            }
+
+            // ✅ Success message
+            await showAlert(
                 'success',
                 'Verify Your Email',
                 'Account created! Please verify your email, then wait for admin approval.'
